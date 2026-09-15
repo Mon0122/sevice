@@ -1,16 +1,65 @@
 {% extends 'base.html' %}
-{% block title %}Login - ServiceFlow{% endblock %}
+{% block title %}Sign In - ServiceFlow{% endblock %}
+
 {% block content %}
-<section class="login-card">
-  <div class="logo-mark">SF</div>
-  <h1>Welcome to ServiceFlow</h1>
-  <p class="muted">Technician scheduling and GPS tracking</p>
-  <form method="post" class="form-stack">
-    <label>Username<input name="username" autocomplete="username" required autofocus></label>
-    <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
-    <button class="button wide">Log in</button>
-  </form>
-  <a class="button secondary wide" href="{{ url_for('create_account') }}">Create an account</a>
-  <div class="demo-box"><b>Customer:</b> customer / Customer2026!<br><b>Technician:</b> technician / Tech2026!</div>
+<section class="login-layout">
+  <div class="login-intro">
+    <a class="login-brand" href="{{ url_for('login') }}">
+      <span class="login-logo">SF</span>
+      <span>Service<strong>Flow</strong></span>
+    </a>
+    <div class="intro-copy">
+      <p class="intro-label">SERVICE MANAGEMENT MADE SIMPLE</p>
+      <h1>Connect customers and technicians in one organized workspace.</h1>
+      <p>Manage service requests, appointments, job updates, and live technician locations without the paperwork.</p>
+      <div class="login-features">
+        <span><i>1</i> Request and schedule services</span>
+        <span><i>2</i> Follow every job's progress</span>
+        <span><i>3</i> View locations on the live map</span>
+      </div>
+    </div>
+    <p class="login-footnote">Dhonthedz Air Conditioning &amp; Refrigeration Service</p>
+  </div>
+
+  <div class="login-form-side">
+    <div class="login-card improved-login-card">
+      <div class="mobile-login-brand"><span class="login-logo">SF</span> Service<strong>Flow</strong></div>
+      <p class="eyebrow">WELCOME BACK</p>
+      <h2>Sign in to your account</h2>
+      <p class="muted">Enter your username and password to continue.</p>
+      <form method="post" class="form-stack login-form">
+        <label for="username">Username
+          <input id="username" name="username" autocomplete="username" placeholder="Enter your username" required autofocus>
+        </label>
+        <label for="password">Password
+          <span class="password-field">
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+            <button type="button" class="show-password" id="password-toggle" onclick="togglePassword()" aria-label="Show password">Show</button>
+          </span>
+        </label>
+        <button class="button wide login-submit">Sign in</button>
+      </form>
+      <div class="account-divider"><span>New to ServiceFlow?</span></div>
+      <a class="button secondary wide create-account-button" href="{{ url_for('create_account') }}">Create an account</a>
+      <details class="demo-accounts">
+        <summary>View classroom demo accounts</summary>
+        <div><b>Customer</b><code>customer / Customer2026!</code></div>
+        <div><b>Technician</b><code>technician / Tech2026!</code></div>
+      </details>
+    </div>
+  </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePassword() {
+  const password = document.getElementById('password');
+  const toggle = document.getElementById('password-toggle');
+  const showing = password.type === 'text';
+  password.type = showing ? 'password' : 'text';
+  toggle.textContent = showing ? 'Show' : 'Hide';
+  toggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+}
+</script>
 {% endblock %}
