@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Manage Technicians - ServiceFlow{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <p class="eyebrow">ADMIN</p>
+    <h1>Manage Technicians</h1>
+    <p class="muted">Create accounts, control access, and decide who can accept new jobs.</p>
+  </div>
+</div>
+
+<details class="panel admin-create-panel">
+  <summary>＋ Add New Technician</summary>
+  <form method="post" class="form-grid admin-create-form">
+    <label>Full Name<input name="full_name" required placeholder="Technician's full name"></label>
+    <label>Phone Number<input name="phone" placeholder="09xx-xxx-xxxx"></label>
+    <label>Username<input name="username" required autocomplete="off" placeholder="Login username"></label>
+    <label>Temporary Password<input name="password" type="password" required minlength="6" autocomplete="new-password" placeholder="At least 6 characters"></label>
+    <div class="full form-actions"><button class="button" type="submit">Create Technician Account</button></div>
+  </form>
+</details>
+
+<section class="technician-manage-grid">
+  {% for technician in technicians %}
+    <article class="panel technician-manage-card" id="technician-{{ technician.id }}">
+      <div class="technician-card-heading">
+        <span class="avatar">{{ technician.full_name[0]|upper }}</span>
+        <div>
+          <h2>{{ technician.full_name }}</h2>
+          <p class="muted">@{{ technician.username }}</p>
+        </div>
+        <span class="status {{ 'status-completed' if technician.active else 'status-cancelled' }}">{{ 'Active' if technician.active else 'Disabled' }}</span>
+      </div>
+
+      <div class="technician-workload">
+        <span><strong>{{ technician.active_jobs }}</strong> active jobs</span>
+        <span><strong>{{ technician.total_jobs }}</strong> total jobs</span>
+        <span><strong>{{ technician.last_location.strftime('%b %d, %I:%M %p') if technician.last_location else 'Never' }}</strong> last GPS</span>
+      </div>
+
+      <form method="post" action="{{ url_for('admin_technician_update', technician_id=technician.id) }}" class="form-grid technician-edit-form">
+        <label>Full Name<input name="full_name" value="{{ technician.full_name }}" required></label>
+        <label>Username<input name="username" value="{{ technician.username }}" required></label>
+        <label>Phone Number<input name="phone" value="{{ technician.phone or '' }}" placeholder="09xx-xxx-xxxx"></label>
+        <label>New Password<input name="new_password" type="password" minlength="6" autocomplete="new-password" placeholder="Leave blank to keep password"></label>
+        <div class="full admin-switches">
+          <label class="check-row"><input type="checkbox" name="active" {% if technician.active %}checked{% endif %}> Active account — technician can sign in</label>
+          <label class="check-row"><input type="checkbox" name="available" {% if technician.available and technician.active %}checked{% endif %}> Available — technician can accept new jobs</label>
+        </div>
+        <div class="full form-actions"><button class="button" type="submit">Save Changes</button></div>
+      </form>
+    </article>
+  {% else %}
+    <div class="panel empty"><h3>No technician accounts yet</h3><p>Use Add New Technician above.</p></div>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard - ServiceFlow{% endblock %}
+
+{% block content %}
+<div class="page-heading dashboard-heading">
+  <div>
+    <p class="eyebrow">ADMIN DASHBOARD</p>
+    <h1>Technician Management</h1>
+    <p class="muted">Create technician accounts and monitor account availability and workload.</p>
+  </div>
+  <a class="button" href="{{ url_for('admin_technicians') }}">Manage Technicians</a>
+</div>
+
+<section class="stat-grid" aria-label="Admin summary">
+  <article class="stat-card dashboard-stat">
+    <span class="stat-symbol blue" aria-hidden="true">T</span>
+    <div><span>Total Technicians</span><strong>{{ totals.technicians }}</strong><small>All technician accounts</small></div>
+  </article>
+  <article class="stat-card dashboard-stat">
+    <span class="stat-symbol green" aria-hidden="true">✓</span>
+    <div><span>Active Accounts</span><strong>{{ totals.active }}</strong><small>Can sign in</small></div>
+  </article>
+  <article class="stat-card dashboard-stat">
+    <span class="stat-symbol teal" aria-hidden="true">A</span>
+    <div><span>Available</span><strong>{{ totals.available }}</strong><small>Can accept new jobs</small></div>
+  </article>
+  <article class="stat-card dashboard-stat">
+    <span class="stat-symbol orange" aria-hidden="true">J</span>
+    <div><span>Active Jobs</span><strong>{{ totals.active_jobs }}</strong><small>Not completed or cancelled</small></div>
+  </article>
+</section>
+
+<section class="panel dashboard-panel">
+  <div class="panel-heading">
+    <div>
+      <h2>Technician Accounts</h2>
+      <p class="muted panel-subtitle">A quick view of technician access and workload.</p>
+    </div>
+    <a class="view-all" href="{{ url_for('admin_technicians') }}">Manage all <span aria-hidden="true">›</span></a>
+  </div>
+  <div class="table-wrap">
+    <table class="dashboard-table">
+      <thead><tr><th>Technician</th><th>Username</th><th>Account</th><th>Availability</th><th>Active Jobs</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for technician in technicians %}
+          <tr>
+            <td><strong>{{ technician.full_name }}</strong><small class="table-secondary">{{ technician.phone or 'No phone number' }}</small></td>
+            <td>{{ technician.username }}</td>
+            <td><span class="status {{ 'status-completed' if technician.active else 'status-cancelled' }}">{{ 'Active' if technician.active else 'Disabled' }}</span></td>
+            <td><span class="status {{ 'status-scheduled' if technician.available and technician.active else 'status-pending' }}">{{ 'Available' if technician.available and technician.active else 'Unavailable' }}</span></td>
+            <td>{{ technician.active_jobs }}</td>
+            <td><a class="button small secondary" href="{{ url_for('admin_technicians', _anchor='technician-' ~ technician.id) }}">Manage</a></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="empty">No technician accounts yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

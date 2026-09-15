@@ -18,7 +18,9 @@
     </button>
     <nav class="nav" id="main-navigation" aria-label="Main navigation">
       <a class="{{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}">Dashboard</a>
-      {% if current_user.role == 'customer' %}
+      {% if current_user.role == 'admin' %}
+        <a class="{{ 'active' if request.endpoint in ('admin_technicians', 'admin_technician_update') }}" href="{{ url_for('admin_technicians') }}">Manage Technicians</a>
+      {% elif current_user.role == 'customer' %}
         <a class="{{ 'active' if request.endpoint in ('requests_page', 'request_detail') }}" href="{{ url_for('requests_page') }}">My Requests</a>
         <a class="{{ 'active' if request.endpoint == 'request_new' }}" href="{{ url_for('request_new') }}">New Request</a>
         <a class="{{ 'active' if request.endpoint == 'schedule' }}" href="{{ url_for('schedule') }}">My Schedule</a>
@@ -29,7 +31,9 @@
         <a class="{{ 'active' if request.endpoint == 'schedule' }}" href="{{ url_for('schedule') }}">My Schedule</a>
         <a class="{{ 'active' if request.endpoint == 'live_map' }}" href="{{ url_for('live_map') }}">Customer Map</a>
       {% endif %}
-      <a class="{{ 'active' if request.endpoint == 'notifications' }}" href="{{ url_for('notifications') }}">Notifications{% if unread_count %} <b class="badge">{{ unread_count }}</b>{% endif %}</a>
+      {% if current_user.role != 'admin' %}
+        <a class="{{ 'active' if request.endpoint == 'notifications' }}" href="{{ url_for('notifications') }}">Notifications{% if unread_count %} <b class="badge">{{ unread_count }}</b>{% endif %}</a>
+      {% endif %}
     </nav>
     <div class="account">
       <span class="account-avatar" aria-hidden="true">{{ current_user.full_name[0]|upper }}</span>

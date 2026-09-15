@@ -12,7 +12,7 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
-    role ENUM('customer', 'technician') NOT NULL,
+    role ENUM('customer', 'technician', 'admin') NOT NULL,
     phone VARCHAR(30),
     address TEXT,
     latitude DECIMAL(10,7), longitude DECIMAL(10,7),

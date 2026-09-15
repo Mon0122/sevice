@@ -69,6 +69,23 @@ def visible_request(request_id):
     return fetch_one(sql, values)
 
 
+def technician_list(limit=None):
+    """Return technician accounts with simple workload information for admins."""
+    sql = """SELECT u.*,
+                    (SELECT COUNT(*) FROM appointments a WHERE a.technician_id=u.id) total_jobs,
+                    (SELECT COUNT(*) FROM appointments a
+                     JOIN service_requests r ON r.id=a.request_id
+                     WHERE a.technician_id=u.id
+                       AND r.status NOT IN ('Completed','Cancelled')) active_jobs,
+                    (SELECT MAX(recorded_at) FROM technician_locations l
+                     WHERE l.technician_id=u.id) last_location
+             FROM users u WHERE u.role='technician' ORDER BY u.full_name"""
+    if limit:
+        sql += " LIMIT %s"
+        return fetch_all(sql, (limit,))
+    return fetch_all(sql)
+
+
 # ACCOUNT PAGES
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -121,6 +138,17 @@ def logout():
 @app.route("/")
 @login_required
 def dashboard():
+    if g.user["role"] == "admin":
+        totals = {
+            "technicians": fetch_one("SELECT COUNT(*) total FROM users WHERE role='technician'")["total"],
+            "active": fetch_one("SELECT COUNT(*) total FROM users WHERE role='technician' AND active=1")["total"],
+            "available": fetch_one("SELECT COUNT(*) total FROM users WHERE role='technician' AND active=1 AND available=1")["total"],
+            "active_jobs": fetch_one("""SELECT COUNT(*) total FROM appointments a
+                                        JOIN service_requests r ON r.id=a.request_id
+                                        WHERE r.status NOT IN ('Completed','Cancelled')""")["total"],
+        }
+        return render_template("admin_dashboard.html", totals=totals, technicians=technician_list(5))
+
     if g.user["role"] == "customer":
         totals = {
             "active": fetch_one("SELECT COUNT(*) total FROM service_requests WHERE customer_id=%s AND status NOT IN ('Completed','Cancelled')", (g.user["id"],))["total"],
@@ -157,14 +185,85 @@ def dashboard():
                                       JOIN service_types s ON s.id=r.service_type_id
                                       LEFT JOIN appointments a ON a.request_id=r.id
                                       WHERE r.status='Pending' AND a.id IS NULL
-                                      ORDER BY r.created_at ASC LIMIT 5""")
+                                      ORDER BY r.created_at ASC LIMIT 5""") if g.user["available"] else []
+        if not g.user["available"]:
+            totals["available"] = 0
     return render_template("dashboard.html", totals=totals, jobs=jobs, available_jobs=available_jobs)
+
+
+# ADMIN TECHNICIAN MANAGEMENT
+@app.route("/admin/technicians", methods=["GET", "POST"])
+@role_required("admin")
+def admin_technicians():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        full_name = request.form.get("full_name", "").strip()
+        phone = request.form.get("phone", "").strip() or None
+
+        if not username or not full_name:
+            flash("Username and full name are required.", "error")
+        elif len(password) < 6:
+            flash("Password must have at least 6 characters.", "error")
+        else:
+            try:
+                execute("""INSERT INTO users(username,password,full_name,role,phone,active,available)
+                           VALUES(%s,%s,%s,'technician',%s,1,1)""",
+                        (username, generate_password_hash(password), full_name, phone))
+                flash("Technician account created.", "success")
+                return redirect(url_for("admin_technicians"))
+            except pymysql.err.IntegrityError:
+                flash("That username is already being used.", "error")
+
+    return render_template("admin_technicians.html", technicians=technician_list())
+
+
+@app.post("/admin/technicians/<int:technician_id>/update")
+@role_required("admin")
+def admin_technician_update(technician_id):
+    technician = fetch_one("SELECT * FROM users WHERE id=%s AND role='technician'", (technician_id,))
+    if not technician:
+        flash("Technician account not found.", "error")
+        return redirect(url_for("admin_technicians"))
+
+    username = request.form.get("username", "").strip()
+    full_name = request.form.get("full_name", "").strip()
+    phone = request.form.get("phone", "").strip() or None
+    password = request.form.get("new_password", "")
+    active = request.form.get("active") == "on"
+    available = request.form.get("available") == "on" and active
+
+    if not username or not full_name:
+        flash("Username and full name are required.", "error")
+        return redirect(url_for("admin_technicians", _anchor=f"technician-{technician_id}"))
+    if password and len(password) < 6:
+        flash("A new password must have at least 6 characters.", "error")
+        return redirect(url_for("admin_technicians", _anchor=f"technician-{technician_id}"))
+
+    try:
+        if password:
+            execute("""UPDATE users SET username=%s,full_name=%s,phone=%s,password=%s,
+                       active=%s,available=%s,sharing_location=IF(%s,sharing_location,0)
+                       WHERE id=%s""",
+                    (username, full_name, phone, generate_password_hash(password),
+                     active, available, available, technician_id))
+        else:
+            execute("""UPDATE users SET username=%s,full_name=%s,phone=%s,
+                       active=%s,available=%s,sharing_location=IF(%s,sharing_location,0)
+                       WHERE id=%s""",
+                    (username, full_name, phone, active, available, available, technician_id))
+        flash("Technician account updated.", "success")
+    except pymysql.err.IntegrityError:
+        flash("That username is already being used.", "error")
+    return redirect(url_for("admin_technicians", _anchor=f"technician-{technician_id}"))
 
 
 # SERVICE REQUESTS
 @app.route("/requests")
 @login_required
 def requests_page():
+    if g.user["role"] == "admin":
+        return redirect(url_for("admin_technicians"))
     sql = """SELECT r.*,c.full_name customer_name,s.name service_name,
                     a.technician_id,t.full_name technician_name,a.start_time
              FROM service_requests r JOIN users c ON c.id=r.customer_id
@@ -182,7 +281,7 @@ def requests_page():
             values = (g.user["id"],)
         else:
             view_mode = "available"
-            sql += "a.id IS NULL AND r.status='Pending'"
+            sql += "a.id IS NULL AND r.status='Pending'" if g.user["available"] else "1=0"
             values = ()
         technician_counts = {
             "available": fetch_one("""SELECT COUNT(*) total FROM service_requests r
@@ -191,7 +290,9 @@ def requests_page():
             "mine": fetch_one("SELECT COUNT(*) total FROM appointments WHERE technician_id=%s", (g.user["id"],))["total"],
         }
     rows = fetch_all(sql + " ORDER BY r.created_at DESC", values)
-    return render_template("requests.html", rows=rows, view_mode=view_mode, technician_counts=technician_counts)
+    return render_template("requests.html", rows=rows, view_mode=view_mode,
+                           technician_counts=technician_counts,
+                           technician_available=g.user.get("available", True))
 
 @app.route("/requests/new", methods=["GET", "POST"])
 @role_required("customer")
@@ -322,6 +423,9 @@ def request_detail(request_id):
 @app.route("/requests/<int:request_id>/accept", methods=["GET", "POST"])
 @role_required("technician")
 def accept_request(request_id):
+    if not g.user["available"]:
+        flash("An admin marked your account unavailable for new jobs.", "error")
+        return redirect(url_for("requests_page", view="mine"))
     item = visible_request(request_id)
     if not item or item["appointment_id"]:
         flash("This request has already been accepted.", "error")
@@ -362,6 +466,8 @@ def request_status(request_id):
 @app.route("/schedule")
 @login_required
 def schedule():
+    if g.user["role"] == "admin":
+        return redirect(url_for("admin_technicians"))
     selected = request.args.get("date", date.today().isoformat())
     sql = """SELECT a.*,r.status,c.full_name customer_name,
                     COALESCE(r.service_address,c.address) address,
@@ -384,6 +490,8 @@ def notifications():
 @app.route("/map")
 @login_required
 def live_map():
+    if g.user["role"] == "admin":
+        return redirect(url_for("admin_technicians"))
     selected_request = request.args.get("request", type=int)
     customers = []
 
@@ -497,6 +605,8 @@ def location_api():
 @app.get("/api/locations")
 @login_required
 def locations_api():
+    if g.user["role"] == "admin":
+        return jsonify(technicians=[])
     if g.user["role"] == "customer":
         sql = """SELECT u.id,u.full_name name,l.latitude,l.longitude,l.accuracy,l.recorded_at,
                         GROUP_CONCAT(DISTINCT r.id ORDER BY r.id) request_ids

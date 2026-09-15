@@ -25,6 +25,7 @@ You do not need it while working on the Flask project.
 
 - Customer: `customer` / `Customer2026!`
 - Technician: `technician` / `Tech2026!`
+- Admin: `admin` / `Admin2026!`
 
 Customers request a service and track their assigned technician. Technicians
 accept available requests, schedule the visit, update the status, and control GPS

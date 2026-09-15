@@ -34,6 +34,11 @@
       My Accepted Jobs <span>{{ technician_counts.mine }}</span>
     </a>
   </nav>
+  {% if view_mode == 'available' and not technician_available %}
+    <div class="alert">
+      Your account is currently marked unavailable by the admin. You can finish accepted jobs, but you cannot accept new jobs.
+    </div>
+  {% endif %}
 {% endif %}
 
 <section class="panel request-list-panel">
@@ -82,11 +87,13 @@
                 <h3>
                   {% if current_user.role == 'customer' %}No service requests yet
                   {% elif view_mode == 'mine' %}You have not accepted a job yet
+                  {% elif not technician_available %}You are unavailable for new jobs
                   {% else %}No available jobs right now{% endif %}
                 </h3>
                 <p>
                   {% if current_user.role == 'customer' %}Create a request and technicians will be able to accept it.
                   {% elif view_mode == 'mine' %}Choose a request from the Available Jobs tab.
+                  {% elif not technician_available %}Ask the admin to mark your account available when you are ready.
                   {% else %}New customer requests will appear here automatically.{% endif %}
                 </p>
               </div>
