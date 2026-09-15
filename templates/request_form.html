@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}Request Service - ServiceFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">CUSTOMER</p><h1>Request a service</h1><p class="muted">A technician can see and accept your request.</p></div></div>
+<form method="post" class="panel form-card"><div class="form-grid">
+  <label>Service type<select name="service_type_id" required>{% for item in service_types %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select></label>
+  <label>Preferred date<input name="preferred_date" type="date"></label>
+  <label class="full">What needs to be fixed?<textarea name="description" required placeholder="Describe the problem..."></textarea></label>
+</div><div class="form-actions"><a class="button secondary" href="{{ url_for('requests_page') }}">Cancel</a><button class="button">Send request</button></div></form>
+{% endblock %}

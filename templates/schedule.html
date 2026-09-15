@@ -1,0 +1,4 @@
+{% extends 'base.html' %}
+{% block title %}Schedule - ServiceFlow{% endblock %}
+{% block content %}<div class="page-heading"><div><p class="eyebrow">{{ current_user.role|upper }}</p><h1>My schedule</h1><p class="muted">Only appointments connected to your account are shown.</p></div></div><form class="filter-bar"><label>Choose date<input type="date" name="date" value="{{ selected }}" onchange="this.form.submit()"></label></form>
+<section class="panel schedule-list">{% for row in rows %}<article class="schedule-item"><time>{{ row.start_time.strftime('%I:%M %p') }}<small>to {{ row.end_time.strftime('%I:%M %p') }}</small></time><div><h3>{{ row.customer_name }} · {{ row.service_name }}</h3><p>{{ row.address }}</p><span class="muted">Technician: {{ row.technician_name }}</span></div><span class="status">{{ row.status }}</span></article>{% else %}<div class="empty"><h3>No appointments on this date</h3></div>{% endfor %}</section>{% endblock %}

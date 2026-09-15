@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}GPS Map - ServiceFlow{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">LIVE TRACKING</p><h1>{{ 'Track my technician' if current_user.role == 'customer' else 'Customer map' }}</h1><p class="muted">{% if current_user.role == 'customer' %}Only the technician assigned to your active request is shown.{% else %}See customer service locations and share your live GPS position.{% endif %}</p></div>{% if current_user.role == 'technician' %}<a class="button" href="{{ url_for('share_location') }}">Share my location</a>{% endif %}</div>
+<section class="panel map-panel"><div id="map"></div><div class="map-legend"><span><i class="pin technician"></i> Technician</span><span><i class="pin customer"></i> Customer</span></div></section>
+{% endblock %}
+{% block scripts %}<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+const customers = {{ customers|tojson }};
+const map = L.map('map').setView([14.5995, 120.9842], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
+customers.forEach(c => L.circleMarker([c.latitude,c.longitude], {radius:8,color:'#0f766e',fillOpacity:.9}).addTo(map).bindPopup(`<b>${c.name}</b><br>${c.address}`));
+let technicianMarkers = [];
+async function refreshLocations(){
+  const response = await fetch('{{ url_for("locations_api") }}'); const data = await response.json();
+  technicianMarkers.forEach(marker => map.removeLayer(marker)); technicianMarkers = [];
+  data.technicians.forEach(t => technicianMarkers.push(L.circleMarker([t.latitude,t.longitude], {radius:10,color:'#e76f51',fillOpacity:.95}).addTo(map).bindPopup(`<b>${t.name}</b><br>Updated ${new Date(t.recorded_at).toLocaleString()}`)));
+}
+refreshLocations(); setInterval(refreshLocations, 10000);
+</script>{% endblock %}

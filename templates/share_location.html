@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Share Location - ServiceFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">GPS</p><h1>Share my location</h1><p class="muted">Keep this page open while travelling to the customer.</p></div></div>
+<section class="panel sharing-card"><div id="gps-icon" class="gps-icon">GPS</div><h2 id="gps-title">Location sharing is off</h2><p id="gps-message" class="muted">Press Start to allow ServiceFlow to update your position.</p><button id="toggle" class="button" onclick="toggleSharing()">Start sharing</button><p class="privacy-note">Your location is shared only while this page is open and sharing is enabled.</p></section>
+{% endblock %}
+{% block scripts %}<script>
+let watchId = null, enabled = false;
+const button = document.getElementById('toggle'), title = document.getElementById('gps-title'), message = document.getElementById('gps-message'), icon = document.getElementById('gps-icon');
+async function setServerState(value){ await fetch('{{ url_for("sharing_api") }}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:value})}); }
+async function toggleSharing(){
+  if(enabled){ navigator.geolocation.clearWatch(watchId); await setServerState(false); enabled=false; button.textContent='Start sharing'; button.classList.remove('danger'); title.textContent='Location sharing is off'; message.textContent='Press Start to allow ServiceFlow to update your position.'; icon.classList.remove('active'); return; }
+  if(!navigator.geolocation){ message.textContent='GPS is not supported by this browser.'; return; }
+  await setServerState(true); enabled=true; button.textContent='Stop sharing'; button.classList.add('danger'); title.textContent='Sharing your live location'; icon.classList.add('active');
+  watchId=navigator.geolocation.watchPosition(async position=>{ const c=position.coords; message.textContent=`Last update: ${new Date().toLocaleTimeString()} · Accuracy: ${Math.round(c.accuracy)} meters`; await fetch('{{ url_for("location_api") }}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({latitude:c.latitude,longitude:c.longitude,accuracy:c.accuracy})}); }, error=>{ message.textContent='GPS error: '+error.message; }, {enableHighAccuracy:true,maximumAge:5000,timeout:15000});
+}
+window.addEventListener('beforeunload',()=>{ if(enabled) navigator.sendBeacon('{{ url_for("sharing_api") }}',new Blob([JSON.stringify({enabled:false})],{type:'application/json'})); });
+</script>{% endblock %}

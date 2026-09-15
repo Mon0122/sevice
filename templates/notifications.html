@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block title %}Notifications - ServiceFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">INBOX</p><h1>Notifications</h1></div></div>
+<section class="panel">{% for row in rows %}<a class="notification" href="{{ row.link or '#' }}"><span class="notification-icon">i</span><span><b>{{ row.message }}</b><small>{{ row.created_at.strftime('%b %d, %Y · %I:%M %p') }}</small></span></a>{% else %}<div class="empty"><h3>No notifications</h3><p>New job assignments will appear here.</p></div>{% endfor %}</section>
+{% endblock %}

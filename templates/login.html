@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Login - ServiceFlow{% endblock %}
+{% block content %}
+<section class="login-card">
+  <div class="logo-mark">SF</div>
+  <h1>Welcome to ServiceFlow</h1>
+  <p class="muted">Technician scheduling and GPS tracking</p>
+  <form method="post" class="form-stack">
+    <label>Username<input name="username" autocomplete="username" required autofocus></label>
+    <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="button wide">Log in</button>
+  </form>
+  <a class="button secondary wide" href="{{ url_for('create_account') }}">Create an account</a>
+  <div class="demo-box"><b>Customer:</b> customer / Customer2026!<br><b>Technician:</b> technician / Tech2026!</div>
+</section>
+{% endblock %}

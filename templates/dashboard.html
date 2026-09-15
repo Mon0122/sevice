@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - ServiceFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">{{ current_user.role|upper }} ACCOUNT</p><h1>Hello, {{ current_user.full_name }}</h1><p class="muted">{% if current_user.role == 'customer' %}Request a service and follow your technician.{% else %}Accept customer jobs and update your progress.{% endif %}</p></div>{% if current_user.role == 'customer' %}<a class="button" href="{{ url_for('request_new') }}">+ Request service</a>{% else %}<a class="button" href="{{ url_for('requests_page') }}">View available jobs</a>{% endif %}</div>
+<section class="stat-grid three">
+  <article class="stat-card"><span>{{ 'My requests' if current_user.role == 'customer' else 'Accepted jobs' }}</span><strong>{{ totals.all }}</strong></article>
+  <article class="stat-card"><span>Active</span><strong>{{ totals.open }}</strong></article>
+  <article class="stat-card"><span>{{ 'Completed' if current_user.role == 'customer' else 'Available jobs' }}</span><strong>{{ totals.completed if current_user.role == 'customer' else totals.available }}</strong></article>
+</section>
+<section class="panel"><div class="panel-heading"><h2>{{ 'My recent requests' if current_user.role == 'customer' else 'My accepted jobs' }}</h2><a href="{{ url_for('requests_page') }}">View all</a></div>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>{{ 'Service' if current_user.role == 'customer' else 'Customer' }}</th><th>Appointment</th><th>Status</th><th>Action</th></tr></thead><tbody>
+{% for row in jobs %}<tr><td><a href="{{ url_for('request_detail', request_id=row.id) }}">#{{ row.id }}</a></td><td>{{ row.service_name if current_user.role == 'customer' else row.customer_name }}</td><td>{{ row.start_time.strftime('%b %d, %I:%M %p') if row.start_time else 'Waiting for technician' }}</td><td><span class="status">{{ row.status }}</span></td><td>{% if current_user.role == 'technician' %}<a class="button small" href="{{ url_for('live_map', request=row.id) }}">Track</a>{% elif row.technician_name %}<a class="button small" href="{{ url_for('live_map') }}">Track</a>{% else %}<span class="muted">Waiting</span>{% endif %}</td></tr>{% else %}<tr><td colspan="5" class="empty">No jobs yet.</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% endblock %}
