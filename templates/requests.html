@@ -1,151 +1,100 @@
 {% extends 'base.html' %}
 
-{% block title %}
-Requests - ServiceFlow
-{% endblock %}
-
+{% block title %}{{ 'My Requests' if current_user.role == 'customer' else 'Technician Jobs' }} - ServiceFlow{% endblock %}
 
 {% block content %}
-
 <div class="page-heading">
-
   <div>
-
-    <p class="eyebrow">
-      {{ 'MY SERVICES'
-         if current_user.role == 'customer'
-         else 'TECHNICIAN JOBS' }}
-    </p>
-
+    <p class="eyebrow">{{ 'CUSTOMER SERVICES' if current_user.role == 'customer' else 'TECHNICIAN JOBS' }}</p>
     <h1>
-      {{ 'My service requests'
-         if current_user.role == 'customer'
-         else 'Jobs' }}
+      {% if current_user.role == 'customer' %}My Service Requests
+      {% elif view_mode == 'mine' %}My Accepted Jobs
+      {% else %}Available Jobs{% endif %}
     </h1>
-
-    {% if current_user.role == 'technician' %}
-
-      <p class="muted">
-        Pending requests are available to accept.
-        Your accepted jobs also appear here.
-      </p>
-
-    {% endif %}
-
+    <p class="muted">
+      {% if current_user.role == 'customer' %}View your requests, technician assignment, and progress.
+      {% elif view_mode == 'mine' %}Only jobs accepted by you are shown here.
+      {% else %}Customer requests that are still waiting for a technician.{% endif %}
+    </p>
   </div>
-
 
   {% if current_user.role == 'customer' %}
-
-    <a
-      class="button"
-      href="{{ url_for('request_new') }}"
-    >
-      Request Service
-    </a>
-
+    <a class="button" href="{{ url_for('request_new') }}">＋ New Service Request</a>
+  {% elif view_mode == 'mine' %}
+    <a class="button secondary" href="{{ url_for('requests_page', view='available') }}">Find Available Jobs</a>
   {% endif %}
-
 </div>
 
+{% if current_user.role == 'technician' %}
+  <nav class="job-tabs" aria-label="Technician job views">
+    <a class="{{ 'active' if view_mode == 'available' }}" href="{{ url_for('requests_page', view='available') }}">
+      Available Jobs <span>{{ technician_counts.available }}</span>
+    </a>
+    <a class="{{ 'active' if view_mode == 'mine' }}" href="{{ url_for('requests_page', view='mine') }}">
+      My Accepted Jobs <span>{{ technician_counts.mine }}</span>
+    </a>
+  </nav>
+{% endif %}
 
-<section class="panel">
-
+<section class="panel request-list-panel">
   <div class="table-wrap">
-
     <table>
-
       <thead>
-
         <tr>
-
-          <th>ID</th>
-
-          <th>
-            {{ 'Service'
-               if current_user.role == 'customer'
-               else 'Customer' }}
-          </th>
-
-          <th>Technician</th>
-
-          <th>Preferred Date</th>
-
+          <th>Request</th>
+          <th>{{ 'Service' if current_user.role == 'customer' else 'Customer / Service' }}</th>
+          <th>{{ 'Technician' if current_user.role == 'customer' else ('Appointment' if view_mode == 'mine' else 'Preferred Date') }}</th>
           <th>Status</th>
-
+          <th>Action</th>
         </tr>
-
       </thead>
-
-
       <tbody>
-
         {% for row in rows %}
-
-          <tr
-            class="clickable"
-            data-url="{{ url_for('request_detail', request_id=row.id) }}"
-            onclick="window.location.href=this.dataset.url"
-          >
-
-            <td>
-              #{{ row.id }}
-            </td>
-
-
-            <td>
-
-              <b>
-                {{ row.service_name
-                   if current_user.role == 'customer'
-                   else row.customer_name }}
-              </b>
-
-            </td>
-
-
-            <td>
-              {{ row.technician_name or 'Not accepted yet' }}
-            </td>
-
-
-            <td>
-              {{ row.preferred_date or 'Not specified' }}
-            </td>
-
-
-            <td>
-
-              <span class="status">
-                {{ row.status }}
-              </span>
-
-            </td>
-
-          </tr>
-
-
-        {% else %}
-
           <tr>
-
-            <td
-              colspan="5"
-              class="empty"
-            >
-              No requests found.
+            <td><a class="request-id" href="{{ url_for('request_detail', request_id=row.id) }}">#{{ row.id }}</a></td>
+            <td>
+              <strong>{{ row.service_name if current_user.role == 'customer' else row.customer_name }}</strong>
+              {% if current_user.role == 'technician' %}<small class="table-secondary">{{ row.service_name }}</small>{% endif %}
             </td>
-
+            <td>
+              {% if current_user.role == 'customer' %}
+                {{ row.technician_name or 'Waiting for technician' }}
+              {% elif view_mode == 'mine' %}
+                {% if row.start_time %}<span class="appointment-date">{{ row.start_time.strftime('%b %d, %Y') }}<small>{{ row.start_time.strftime('%I:%M %p') }}</small></span>{% else %}Not scheduled{% endif %}
+              {% else %}
+                {{ row.preferred_date.strftime('%b %d, %Y') if row.preferred_date else 'Flexible' }}
+              {% endif %}
+            </td>
+            <td><span class="status status-{{ row.status|lower|replace(' ', '-') }}">{{ row.status }}</span></td>
+            <td>
+              {% if current_user.role == 'technician' and view_mode == 'available' %}
+                <a class="button small" href="{{ url_for('accept_request', request_id=row.id) }}">Review &amp; Accept</a>
+              {% else %}
+                <a class="button small secondary" href="{{ url_for('request_detail', request_id=row.id) }}">View Details</a>
+              {% endif %}
+            </td>
           </tr>
-
+        {% else %}
+          <tr>
+            <td colspan="5">
+              <div class="empty-state">
+                <span class="empty-symbol" aria-hidden="true">□</span>
+                <h3>
+                  {% if current_user.role == 'customer' %}No service requests yet
+                  {% elif view_mode == 'mine' %}You have not accepted a job yet
+                  {% else %}No available jobs right now{% endif %}
+                </h3>
+                <p>
+                  {% if current_user.role == 'customer' %}Create a request and technicians will be able to accept it.
+                  {% elif view_mode == 'mine' %}Choose a request from the Available Jobs tab.
+                  {% else %}New customer requests will appear here automatically.{% endif %}
+                </p>
+              </div>
+            </td>
+          </tr>
         {% endfor %}
-
       </tbody>
-
     </table>
-
   </div>
-
 </section>
-
 {% endblock %}

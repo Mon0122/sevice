@@ -122,8 +122,10 @@ def logout():
 def dashboard():
     if g.user["role"] == "customer":
         totals = {
-            "all": fetch_one("SELECT COUNT(*) total FROM service_requests WHERE customer_id=%s", (g.user["id"],))["total"],
-            "open": fetch_one("SELECT COUNT(*) total FROM service_requests WHERE customer_id=%s AND status NOT IN ('Completed','Cancelled')", (g.user["id"],))["total"],
+            "active": fetch_one("SELECT COUNT(*) total FROM service_requests WHERE customer_id=%s AND status NOT IN ('Completed','Cancelled')", (g.user["id"],))["total"],
+            "scheduled": fetch_one("""SELECT COUNT(*) total FROM appointments a
+                                      JOIN service_requests r ON r.id=a.request_id
+                                      WHERE r.customer_id=%s AND r.status NOT IN ('Completed','Cancelled')""", (g.user["id"],))["total"],
             "completed": fetch_one("SELECT COUNT(*) total FROM service_requests WHERE customer_id=%s AND status='Completed'", (g.user["id"],))["total"],
         }
         jobs = fetch_all("""SELECT r.id,r.status,r.preferred_date,s.name service_name,
@@ -131,19 +133,30 @@ def dashboard():
                              FROM service_requests r JOIN service_types s ON s.id=r.service_type_id
                              LEFT JOIN appointments a ON a.request_id=r.id LEFT JOIN users t ON t.id=a.technician_id
                              WHERE r.customer_id=%s ORDER BY r.created_at DESC LIMIT 5""", (g.user["id"],))
+        available_jobs = []
     else:
         totals = {
-            "all": fetch_one("SELECT COUNT(*) total FROM appointments WHERE technician_id=%s", (g.user["id"],))["total"],
-            "open": fetch_one("""SELECT COUNT(*) total FROM appointments a JOIN service_requests r ON r.id=a.request_id
-                                  WHERE a.technician_id=%s AND r.status NOT IN ('Completed','Cancelled')""", (g.user["id"],))["total"],
+            "today": fetch_one("""SELECT COUNT(*) total FROM appointments a JOIN service_requests r ON r.id=a.request_id
+                                   WHERE a.technician_id=%s AND DATE(a.start_time)=CURDATE()
+                                   AND r.status!='Cancelled'""", (g.user["id"],))["total"],
+            "active": fetch_one("""SELECT COUNT(*) total FROM appointments a JOIN service_requests r ON r.id=a.request_id
+                                    WHERE a.technician_id=%s AND r.status NOT IN ('Completed','Cancelled')""", (g.user["id"],))["total"],
             "available": fetch_one("""SELECT COUNT(*) total FROM service_requests r WHERE r.status='Pending'
                                        AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.request_id=r.id)""")["total"],
         }
         jobs = fetch_all("""SELECT r.id,r.status,c.full_name customer_name,s.name service_name,a.start_time
                              FROM appointments a JOIN service_requests r ON r.id=a.request_id
                              JOIN users c ON c.id=r.customer_id JOIN service_types s ON s.id=r.service_type_id
-                             WHERE a.technician_id=%s ORDER BY a.start_time DESC LIMIT 5""", (g.user["id"],))
-    return render_template("dashboard.html", totals=totals, jobs=jobs)
+                             WHERE a.technician_id=%s AND r.status NOT IN ('Completed','Cancelled')
+                             ORDER BY a.start_time ASC LIMIT 5""", (g.user["id"],))
+        available_jobs = fetch_all("""SELECT r.id,r.preferred_date,c.full_name customer_name,c.address,
+                                             s.name service_name
+                                      FROM service_requests r JOIN users c ON c.id=r.customer_id
+                                      JOIN service_types s ON s.id=r.service_type_id
+                                      LEFT JOIN appointments a ON a.request_id=r.id
+                                      WHERE r.status='Pending' AND a.id IS NULL
+                                      ORDER BY r.created_at ASC LIMIT 5""")
+    return render_template("dashboard.html", totals=totals, jobs=jobs, available_jobs=available_jobs)
 
 
 # SERVICE REQUESTS
@@ -157,10 +170,26 @@ def requests_page():
              LEFT JOIN appointments a ON a.request_id=r.id LEFT JOIN users t ON t.id=a.technician_id WHERE """
     if g.user["role"] == "customer":
         sql += "r.customer_id=%s"
+        values = (g.user["id"],)
+        view_mode = "mine"
+        technician_counts = None
     else:
-        sql += "(a.technician_id=%s OR (a.id IS NULL AND r.status='Pending'))"
-    rows = fetch_all(sql + " ORDER BY r.created_at DESC", (g.user["id"],))
-    return render_template("requests.html", rows=rows)
+        view_mode = request.args.get("view", "available")
+        if view_mode == "mine":
+            sql += "a.technician_id=%s"
+            values = (g.user["id"],)
+        else:
+            view_mode = "available"
+            sql += "a.id IS NULL AND r.status='Pending'"
+            values = ()
+        technician_counts = {
+            "available": fetch_one("""SELECT COUNT(*) total FROM service_requests r
+                                       LEFT JOIN appointments a ON a.request_id=r.id
+                                       WHERE r.status='Pending' AND a.id IS NULL""")["total"],
+            "mine": fetch_one("SELECT COUNT(*) total FROM appointments WHERE technician_id=%s", (g.user["id"],))["total"],
+        }
+    rows = fetch_all(sql + " ORDER BY r.created_at DESC", values)
+    return render_template("requests.html", rows=rows, view_mode=view_mode, technician_counts=technician_counts)
 
 @app.route("/requests/new", methods=["GET", "POST"])
 @role_required("customer")

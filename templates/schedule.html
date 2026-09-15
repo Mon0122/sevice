@@ -61,7 +61,11 @@ Schedule - ServiceFlow
       <div>
 
         <h3>
-          {{ row.customer_name }} · {{ row.service_name }}
+          {% if current_user.role == 'customer' %}
+            {{ row.service_name }}
+          {% else %}
+            {{ row.customer_name }} · {{ row.service_name }}
+          {% endif %}
         </h3>
 
         <p>
@@ -69,7 +73,11 @@ Schedule - ServiceFlow
         </p>
 
         <span class="muted">
-          Technician: {{ row.technician_name }}
+          {% if current_user.role == 'customer' %}
+            Technician: {{ row.technician_name }}
+          {% else %}
+            Customer location
+          {% endif %}
         </span>
 
       </div>

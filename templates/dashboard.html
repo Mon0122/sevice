@@ -3,290 +3,162 @@
 {% block title %}Dashboard - ServiceFlow{% endblock %}
 
 {% block content %}
-
 <div class="dashboard-page">
-
-  <!-- PAGE HEADER -->
-  <div class="page-heading">
-    <div class="heading-content">
-      <p class="eyebrow">
-        {{ current_user.role|upper }} ACCOUNT
-      </p>
-
+  <div class="page-heading dashboard-heading">
+    <div>
+      <p class="eyebrow">{{ current_user.role|upper }} DASHBOARD</p>
       <h1>Hello, {{ current_user.full_name }}</h1>
-
       <p class="muted">
         {% if current_user.role == 'customer' %}
-          Request a service and track your technician's progress.
+          Request a service, check your appointments, and track your assigned technician.
         {% else %}
-          View available jobs, accept requests, and update your progress.
+          Accept customer requests, manage your jobs, and share your live location.
         {% endif %}
       </p>
     </div>
 
-    <div class="heading-action">
-      {% if current_user.role == 'customer' %}
-        <a class="button primary" href="{{ url_for('request_new') }}">
-          <i class="fa fa-plus"></i>
-          Request Service
-        </a>
-      {% else %}
-        <a class="button primary" href="{{ url_for('requests_page') }}">
-          <i class="fa fa-briefcase"></i>
-          View Available Jobs
-        </a>
-      {% endif %}
-    </div>
+    {% if current_user.role == 'customer' %}
+      <a class="button primary" href="{{ url_for('request_new') }}"><span aria-hidden="true">＋</span> New Service Request</a>
+    {% else %}
+      <a class="button primary" href="{{ url_for('requests_page', view='available') }}"><span aria-hidden="true">＋</span> Find Available Jobs</a>
+    {% endif %}
   </div>
 
-
-  <!-- STATISTICS -->
-  <section class="stat-grid three">
-
-    <article class="stat-card">
-      <div class="stat-icon">
-        <i class="fa fa-list"></i>
-      </div>
-
-      <div class="stat-info">
-        <span>
-          {{ 'My Requests' if current_user.role == 'customer' else 'Accepted Jobs' }}
-        </span>
-
-        <strong>{{ totals.all }}</strong>
-      </div>
-    </article>
-
-
-    <article class="stat-card">
-      <div class="stat-icon">
-        <i class="fa fa-clock"></i>
-      </div>
-
-      <div class="stat-info">
-        <span>Active</span>
-        <strong>{{ totals.open }}</strong>
-      </div>
-    </article>
-
-
-    <article class="stat-card">
-      <div class="stat-icon">
-        {% if current_user.role == 'customer' %}
-          <i class="fa fa-circle-check"></i>
-        {% else %}
-          <i class="fa fa-clipboard-list"></i>
-        {% endif %}
-      </div>
-
-      <div class="stat-info">
-        <span>
-          {{ 'Completed' if current_user.role == 'customer' else 'Available Jobs' }}
-        </span>
-
-        <strong>
-          {{ totals.completed if current_user.role == 'customer' else totals.available }}
-        </strong>
-      </div>
-    </article>
-
+  <section class="stat-grid three" aria-label="Dashboard summary">
+    {% if current_user.role == 'customer' %}
+      <article class="stat-card dashboard-stat">
+        <span class="stat-symbol blue" aria-hidden="true">A</span>
+        <div><span>Active Requests</span><strong>{{ totals.active }}</strong><small>Waiting or in progress</small></div>
+      </article>
+      <article class="stat-card dashboard-stat">
+        <span class="stat-symbol teal" aria-hidden="true">S</span>
+        <div><span>Scheduled Visits</span><strong>{{ totals.scheduled }}</strong><small>Technician assigned</small></div>
+      </article>
+      <article class="stat-card dashboard-stat">
+        <span class="stat-symbol green" aria-hidden="true">✓</span>
+        <div><span>Completed</span><strong>{{ totals.completed }}</strong><small>Finished services</small></div>
+      </article>
+    {% else %}
+      <article class="stat-card dashboard-stat">
+        <span class="stat-symbol blue" aria-hidden="true">T</span>
+        <div><span>Today's Jobs</span><strong>{{ totals.today }}</strong><small>Appointments today</small></div>
+      </article>
+      <article class="stat-card dashboard-stat">
+        <span class="stat-symbol teal" aria-hidden="true">A</span>
+        <div><span>Active Jobs</span><strong>{{ totals.active }}</strong><small>Accepted and ongoing</small></div>
+      </article>
+      <article class="stat-card dashboard-stat">
+        <span class="stat-symbol orange" aria-hidden="true">＋</span>
+        <div><span>Available Jobs</span><strong>{{ totals.available }}</strong><small>Waiting for a technician</small></div>
+      </article>
+    {% endif %}
   </section>
 
+  <section class="dashboard-actions" aria-label="Quick actions">
+    {% if current_user.role == 'customer' %}
+      <a href="{{ url_for('request_new') }}"><span class="action-symbol">＋</span><span><strong>Request Service</strong><small>Describe the service you need</small></span><b>›</b></a>
+      <a href="{{ url_for('schedule') }}"><span class="action-symbol">▣</span><span><strong>View Schedule</strong><small>Check your appointment time</small></span><b>›</b></a>
+      <a href="{{ url_for('live_map') }}"><span class="action-symbol">⌖</span><span><strong>Track Technician</strong><small>See the latest shared location</small></span><b>›</b></a>
+    {% else %}
+      <a href="{{ url_for('requests_page', view='available') }}"><span class="action-symbol">＋</span><span><strong>Available Jobs</strong><small>Accept a customer request</small></span><b>›</b></a>
+      <a href="{{ url_for('schedule') }}"><span class="action-symbol">▣</span><span><strong>My Schedule</strong><small>Check today's appointments</small></span><b>›</b></a>
+      <a href="{{ url_for('share_location') }}"><span class="action-symbol">⌖</span><span><strong>Share GPS</strong><small>Let customers track your location</small></span><b>›</b></a>
+    {% endif %}
+  </section>
 
-  <!-- RECENT REQUESTS / JOBS -->
-  <section class="panel">
-
+  <section class="panel dashboard-panel">
     <div class="panel-heading">
       <div>
-        <h2>
-          {{ 'My Recent Requests' if current_user.role == 'customer' else 'My Accepted Jobs' }}
-        </h2>
-
+        <h2>{{ 'Recent Service Requests' if current_user.role == 'customer' else 'My Active Jobs' }}</h2>
         <p class="muted panel-subtitle">
-          {% if current_user.role == 'customer' %}
-            View and manage your latest service requests.
-          {% else %}
-            View the service jobs currently assigned to you.
-          {% endif %}
+          {{ 'Your newest requests and their current progress.' if current_user.role == 'customer' else 'Accepted jobs that still need to be completed.' }}
         </p>
       </div>
-
-      <a class="view-all" href="{{ url_for('requests_page') }}">
-        View all
-        <i class="fa fa-arrow-right"></i>
-      </a>
+      <a class="view-all" href="{{ url_for('requests_page', view='mine') if current_user.role == 'technician' else url_for('requests_page') }}">View all <span aria-hidden="true">›</span></a>
     </div>
 
-
     <div class="table-wrap">
-
       <table class="dashboard-table">
-
         <thead>
           <tr>
             <th>Request</th>
-
-            <th>
-              {{ 'Service' if current_user.role == 'customer' else 'Customer' }}
-            </th>
-
+            <th>{{ 'Service' if current_user.role == 'customer' else 'Customer / Service' }}</th>
             <th>Appointment</th>
             <th>Status</th>
             <th>Action</th>
           </tr>
         </thead>
-
-
         <tbody>
-
           {% for row in jobs %}
-
-          <tr>
-
-            <!-- REQUEST ID -->
-            <td>
-              <a
-                class="request-id"
-                href="{{ url_for('request_detail', request_id=row.id) }}"
-              >
-                #{{ row.id }}
-              </a>
-            </td>
-
-
-            <!-- SERVICE / CUSTOMER -->
-            <td>
-              <strong>
-                {{ row.service_name if current_user.role == 'customer'
-                   else row.customer_name }}
-              </strong>
-            </td>
-
-
-            <!-- APPOINTMENT -->
-            <td>
-              {% if row.start_time %}
-                <div class="appointment">
-                  <i class="fa fa-calendar"></i>
-
-                  <span>
-                    {{ row.start_time.strftime('%b %d, %Y') }}
-                    <small>
-                      {{ row.start_time.strftime('%I:%M %p') }}
-                    </small>
-                  </span>
-                </div>
-              {% else %}
-                <span class="muted">
-                  Waiting for technician
-                </span>
-              {% endif %}
-            </td>
-
-
-            <!-- STATUS -->
-            <td>
-              <span class="status status-{{ row.status|lower|replace(' ', '-') }}">
-                {{ row.status }}
-              </span>
-            </td>
-
-
-            <!-- ACTION -->
-            <td>
-
-              {% if current_user.role == 'technician' %}
-
-                <a
-                  class="button small secondary"
-                  href="{{ url_for('live_map', request=row.id) }}"
-                >
-                  <i class="fa fa-location-dot"></i>
-                  Track
-                </a>
-
-              {% elif row.technician_name %}
-
-                <a
-                  class="button small secondary"
-                  href="{{ url_for('live_map') }}"
-                >
-                  <i class="fa fa-location-dot"></i>
-                  Track
-                </a>
-
-              {% else %}
-
-                <span class="waiting-text">
-                  Waiting
-                </span>
-
-              {% endif %}
-
-            </td>
-
-          </tr>
-
-
-          {% else %}
-
-          <tr>
-            <td colspan="5">
-
-              <div class="empty-state">
-
-                <div class="empty-icon">
-                  <i class="fa fa-inbox"></i>
-                </div>
-
-                {% if current_user.role == 'customer' %}
-
-                  <h3>No service requests yet</h3>
-
-                  <p>
-                    Your service requests will appear here once you create one.
-                  </p>
-
-                  <a
-                    class="button primary small"
-                    href="{{ url_for('request_new') }}"
-                  >
-                    <i class="fa fa-plus"></i>
-                    Request Service
-                  </a>
-
+            <tr>
+              <td><a class="request-id" href="{{ url_for('request_detail', request_id=row.id) }}">#{{ row.id }}</a></td>
+              <td>
+                <strong>{{ row.service_name if current_user.role == 'customer' else row.customer_name }}</strong>
+                {% if current_user.role == 'technician' %}<small class="table-secondary">{{ row.service_name }}</small>{% endif %}
+              </td>
+              <td>
+                {% if row.start_time %}
+                  <span class="appointment-date">{{ row.start_time.strftime('%b %d, %Y') }}<small>{{ row.start_time.strftime('%I:%M %p') }}</small></span>
                 {% else %}
-
-                  <h3>No accepted jobs yet</h3>
-
-                  <p>
-                    Jobs you accept will appear here.
-                  </p>
-
-                  <a
-                    class="button primary small"
-                    href="{{ url_for('requests_page') }}"
-                  >
-                    View Available Jobs
-                  </a>
-
+                  <span class="muted">Waiting for technician</span>
                 {% endif %}
-
-              </div>
-
-            </td>
-          </tr>
-
+              </td>
+              <td><span class="status status-{{ row.status|lower|replace(' ', '-') }}">{{ row.status }}</span></td>
+              <td>
+                {% if current_user.role == 'technician' %}
+                  <a class="button small secondary" href="{{ url_for('live_map', request=row.id) }}">Track</a>
+                {% elif row.technician_name %}
+                  <a class="button small secondary" href="{{ url_for('live_map') }}">Track</a>
+                {% else %}
+                  <a class="text-link" href="{{ url_for('request_detail', request_id=row.id) }}">View</a>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5">
+                <div class="empty-state">
+                  <span class="empty-symbol" aria-hidden="true">□</span>
+                  <h3>{{ 'No service requests yet' if current_user.role == 'customer' else 'No accepted jobs yet' }}</h3>
+                  <p>{{ 'Create your first request to get started.' if current_user.role == 'customer' else 'Accept an available job and it will appear here.' }}</p>
+                  <a class="button small" href="{{ url_for('request_new') if current_user.role == 'customer' else url_for('requests_page', view='available') }}">
+                    {{ 'Request Service' if current_user.role == 'customer' else 'Browse Available Jobs' }}
+                  </a>
+                </div>
+              </td>
+            </tr>
           {% endfor %}
-
         </tbody>
-
       </table>
-
     </div>
-
   </section>
 
-</div>
+  {% if current_user.role == 'technician' %}
+    <section class="panel dashboard-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Available Customer Requests</h2>
+          <p class="muted panel-subtitle">These requests have not been accepted by a technician.</p>
+        </div>
+        <a class="view-all" href="{{ url_for('requests_page', view='available') }}">View all <span aria-hidden="true">›</span></a>
+      </div>
 
+      <div class="available-job-list">
+        {% for row in available_jobs %}
+          <article class="available-job">
+            <div>
+              <span class="job-number">Request #{{ row.id }}</span>
+              <h3>{{ row.service_name }}</h3>
+              <p>{{ row.customer_name }} · {{ row.address or 'No address provided' }}</p>
+              <small>Preferred date: {{ row.preferred_date.strftime('%b %d, %Y') if row.preferred_date else 'Flexible' }}</small>
+            </div>
+            <a class="button small" href="{{ url_for('accept_request', request_id=row.id) }}">Review &amp; Accept</a>
+          </article>
+        {% else %}
+          <div class="empty compact"><h3>No available jobs right now</h3><p>New customer requests will appear here.</p></div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+</div>
 {% endblock %}

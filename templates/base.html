@@ -11,23 +11,33 @@
 <body>
   {% if current_user %}
   <header class="topbar">
-    <a class="brand" href="{{ url_for('dashboard') }}">Service<span>Flow</span></a>
-    <button class="menu-button" onclick="document.querySelector('.nav').classList.toggle('open')">Menu</button>
-    <nav class="nav">
-      <a href="{{ url_for('dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('requests_page') }}">{{ 'My Requests' if current_user.role == 'customer' else 'Jobs' }}</a>
-      <a href="{{ url_for('schedule') }}">Schedule</a>
+    <a class="brand" href="{{ url_for('dashboard') }}" aria-label="ServiceFlow dashboard">Service<span>Flow</span></a>
+    <button class="menu-button" type="button" aria-controls="main-navigation" aria-expanded="false"
+            onclick="const nav=document.querySelector('.nav'); nav.classList.toggle('open'); this.setAttribute('aria-expanded', nav.classList.contains('open'))">
+      Menu
+    </button>
+    <nav class="nav" id="main-navigation" aria-label="Main navigation">
+      <a class="{{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}">Dashboard</a>
       {% if current_user.role == 'customer' %}
-        <a href="{{ url_for('request_new') }}">Request Service</a>
-        <a href="{{ url_for('live_map') }}">Track Technician</a>
+        <a class="{{ 'active' if request.endpoint in ('requests_page', 'request_detail') }}" href="{{ url_for('requests_page') }}">My Requests</a>
+        <a class="{{ 'active' if request.endpoint == 'request_new' }}" href="{{ url_for('request_new') }}">New Request</a>
+        <a class="{{ 'active' if request.endpoint == 'schedule' }}" href="{{ url_for('schedule') }}">My Schedule</a>
+        <a class="{{ 'active' if request.endpoint == 'live_map' }}" href="{{ url_for('live_map') }}">Track Technician</a>
       {% else %}
-        <a href="{{ url_for('live_map') }}">Customer Map</a>
-        <a href="{{ url_for('share_location') }}">Share Location</a>
+        <a class="{{ 'active' if (request.endpoint == 'requests_page' and request.args.get('view', 'available') == 'available') or request.endpoint == 'accept_request' or (request.endpoint == 'request_detail' and item is defined and not item.appointment_id) }}" href="{{ url_for('requests_page', view='available') }}">Available Jobs</a>
+        <a class="{{ 'active' if (request.endpoint == 'requests_page' and request.args.get('view') == 'mine') or (request.endpoint == 'request_detail' and item is defined and item.appointment_id) }}" href="{{ url_for('requests_page', view='mine') }}">My Jobs</a>
+        <a class="{{ 'active' if request.endpoint == 'schedule' }}" href="{{ url_for('schedule') }}">My Schedule</a>
+        <a class="{{ 'active' if request.endpoint == 'live_map' }}" href="{{ url_for('live_map') }}">Customer Map</a>
+        <a class="{{ 'active' if request.endpoint == 'share_location' }}" href="{{ url_for('share_location') }}">Share GPS</a>
       {% endif %}
-      <a href="{{ url_for('notifications') }}">Notifications{% if unread_count %} <b class="badge">{{ unread_count }}</b>{% endif %}</a>
+      <a class="{{ 'active' if request.endpoint == 'notifications' }}" href="{{ url_for('notifications') }}">Notifications{% if unread_count %} <b class="badge">{{ unread_count }}</b>{% endif %}</a>
     </nav>
     <div class="account">
-      <span>{{ current_user.full_name }} · {{ current_user.role|title }}</span>
+      <span class="account-avatar" aria-hidden="true">{{ current_user.full_name[0]|upper }}</span>
+      <span class="account-copy">
+        <strong>{{ current_user.full_name }}</strong>
+        <small>{{ current_user.role|title }}</small>
+      </span>
       <form method="post" action="{{ url_for('logout') }}"><button class="link-button">Log out</button></form>
     </div>
   </header>
