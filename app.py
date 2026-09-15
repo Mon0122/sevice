@@ -405,7 +405,7 @@ def live_map():
         if selected_request:
             sql += " AND r.id=%s"
             values.append(selected_request)
-        customers = fetch_all(sql + " ORDER BY r.created_at DESC", values)
+        customers = fetch_all(sql + " ORDER BY (a.id IS NULL),r.created_at DESC", values)
     else:
         sql = """SELECT DISTINCT r.id request_id,c.full_name name,
                         COALESCE(r.service_address,c.address) address,
@@ -497,25 +497,32 @@ def location_api():
 @app.get("/api/locations")
 @login_required
 def locations_api():
-    sql = """SELECT u.id,u.full_name name,l.latitude,l.longitude,l.accuracy,l.recorded_at
-             FROM users u JOIN technician_locations l ON l.id=(SELECT id FROM technician_locations
-             WHERE technician_id=u.id ORDER BY recorded_at DESC LIMIT 1)
-             WHERE u.role='technician' AND u.sharing_location=1
-               AND l.recorded_at >= NOW() - INTERVAL 2 MINUTE"""
-    values = []
     if g.user["role"] == "customer":
-        sql += """ AND EXISTS(SELECT 1 FROM appointments a
-                               JOIN service_requests r ON r.id=a.request_id
-                               WHERE a.technician_id=u.id AND r.customer_id=%s
-                                 AND r.status IN ('Scheduled','In Progress'))"""
+        sql = """SELECT u.id,u.full_name name,l.latitude,l.longitude,l.accuracy,l.recorded_at,
+                        GROUP_CONCAT(DISTINCT r.id ORDER BY r.id) request_ids
+                 FROM appointments a JOIN service_requests r ON r.id=a.request_id
+                 JOIN users u ON u.id=a.technician_id
+                 JOIN technician_locations l ON l.id=(SELECT id FROM technician_locations
+                     WHERE technician_id=u.id ORDER BY recorded_at DESC LIMIT 1)
+                 WHERE r.customer_id=%s AND r.status IN ('Scheduled','In Progress')
+                   AND u.role='technician' AND u.sharing_location=1
+                   AND l.recorded_at >= NOW() - INTERVAL 2 MINUTE
+                 GROUP BY u.id,u.full_name,l.latitude,l.longitude,l.accuracy,l.recorded_at"""
+        values = (g.user["id"],)
     else:
-        sql += " AND u.id=%s"
-    values.append(g.user["id"])
+        sql = """SELECT u.id,u.full_name name,l.latitude,l.longitude,l.accuracy,l.recorded_at
+                 FROM users u JOIN technician_locations l ON l.id=(SELECT id FROM technician_locations
+                     WHERE technician_id=u.id ORDER BY recorded_at DESC LIMIT 1)
+                 WHERE u.id=%s AND u.role='technician' AND u.sharing_location=1
+                   AND l.recorded_at >= NOW() - INTERVAL 2 MINUTE"""
+        values = (g.user["id"],)
     rows = fetch_all(sql, values)
     for row in rows:
         row["latitude"], row["longitude"] = float(row["latitude"]), float(row["longitude"])
         row["accuracy"] = float(row["accuracy"]) if row["accuracy"] is not None else None
         row["recorded_at"] = row["recorded_at"].isoformat()
+        if row.get("request_ids"):
+            row["request_ids"] = [int(value) for value in row["request_ids"].split(",")]
     return jsonify(technicians=rows)
 
 

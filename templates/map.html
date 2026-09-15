@@ -60,6 +60,34 @@
   <div class="alert">Create an active service request with a location before using the map.</div>
 {% endif %}
 
+<section class="map-control-card route-control">
+  <div class="route-status-copy">
+    <span class="route-icon" aria-hidden="true">↗</span>
+    <div>
+      <h2>Best Driving Route</h2>
+      <strong id="route-summary">Waiting for a live technician location</strong>
+      <p id="route-details">The route and estimated travel time will update as the technician moves.</p>
+    </div>
+  </div>
+  <div class="route-actions">
+    {% if current_user.role == 'technician' and customers %}
+      <label for="route-destination">
+        Route to
+        <select id="route-destination" onchange="selectCustomer(this.value)">
+          {% for customer in customers %}
+            <option value="{{ customer.request_id }}" {% if selected_request == customer.request_id %}selected{% endif %}>
+              {{ customer.name }} · #{{ customer.request_id }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endif %}
+    {% if current_user.role == 'technician' %}
+      <a id="waze-button" class="button waze-button disabled" href="#" target="_blank" rel="noopener">Open in Waze</a>
+    {% endif %}
+  </div>
+</section>
+
 <section class="panel map-panel">
   <div id="map"
        data-role="{{ current_user.role }}"
@@ -131,6 +159,14 @@
   let selectedCustomer = null;
   let technicianMarkers = [];
   let fittedLiveLocation = false;
+  let latestTechnicians = [];
+  let routeLine = null;
+  let lastRouteKey = '';
+  let routeRequestNumber = 0;
+
+  const routeSummary = document.getElementById('route-summary');
+  const routeDetails = document.getElementById('route-details');
+  const wazeButton = document.getElementById('waze-button');
 
   function escapeHtml(value) {
     const div = document.createElement('div');
@@ -198,11 +234,105 @@
       map.setView(marker.getLatLng(), 17);
       marker.openPopup();
     }
+    updateWazeLink();
+    updateLiveRoute(true);
   }
 
-  if (currentRole === 'customer' && customers.length) {
-    const selector = document.getElementById('request-selector');
+  if (customers.length) {
+    const selector = document.getElementById(
+      currentRole === 'customer' ? 'request-selector' : 'route-destination'
+    );
     selectCustomer(selector ? selector.value : customers[0].request_id, false);
+  }
+
+  function updateWazeLink() {
+    if (!wazeButton || !selectedCustomer) return;
+    const coordinates = selectedCustomer.latitude + ',' + selectedCustomer.longitude;
+    wazeButton.href = 'https://www.waze.com/ul?ll=' + encodeURIComponent(coordinates) +
+      '&navigate=yes&utm_source=serviceflow';
+    wazeButton.classList.remove('disabled');
+  }
+
+  function clearRoute(message) {
+    if (routeLine) {
+      map.removeLayer(routeLine);
+      routeLine = null;
+    }
+    lastRouteKey = '';
+    routeSummary.textContent = message;
+    routeDetails.textContent = currentRole === 'technician'
+      ? 'Start sharing your GPS to calculate the route from your live position.'
+      : 'The route appears when your assigned technician starts sharing.';
+  }
+
+  function matchingTechnician() {
+    if (!latestTechnicians.length || !selectedCustomer) return null;
+    if (currentRole === 'technician') return latestTechnicians[0];
+    return latestTechnicians.find(function(technician) {
+      return (technician.request_ids || []).includes(Number(selectedCustomer.request_id));
+    }) || null;
+  }
+
+  async function updateLiveRoute(force = false) {
+    const technician = matchingTechnician();
+    if (!technician || !selectedCustomer) {
+      clearRoute(currentRole === 'technician'
+        ? 'Start GPS sharing to calculate your route'
+        : 'Technician route is not available yet');
+      return;
+    }
+
+    const routeKey = [
+      technician.latitude.toFixed(4), technician.longitude.toFixed(4),
+      selectedCustomer.latitude.toFixed(4), selectedCustomer.longitude.toFixed(4)
+    ].join(',');
+    if (!force && routeKey === lastRouteKey) return;
+    lastRouteKey = routeKey;
+    const currentRequest = ++routeRequestNumber;
+    routeSummary.textContent = 'Calculating the best route...';
+
+    const coordinates = technician.longitude + ',' + technician.latitude + ';' +
+      selectedCustomer.longitude + ',' + selectedCustomer.latitude;
+    const routeUrl = 'https://router.project-osrm.org/route/v1/driving/' + coordinates +
+      '?overview=full&geometries=geojson&steps=false';
+
+    try {
+      const response = await fetch(routeUrl);
+      const data = await response.json();
+      if (!response.ok || data.code !== 'Ok' || !data.routes.length) {
+        throw new Error('No driving route was found.');
+      }
+      if (currentRequest !== routeRequestNumber) return;
+      const route = data.routes[0];
+      if (routeLine) map.removeLayer(routeLine);
+      routeLine = L.geoJSON(route.geometry, {
+        style: { color: '#2563eb', weight: 6, opacity: 0.82 }
+      }).addTo(map);
+
+      const distance = route.distance >= 1000
+        ? (route.distance / 1000).toFixed(1) + ' km'
+        : Math.round(route.distance) + ' m';
+      const totalMinutes = Math.max(1, Math.round(route.duration / 60));
+      const duration = totalMinutes >= 60
+        ? Math.floor(totalMinutes / 60) + ' hr ' + (totalMinutes % 60) + ' min'
+        : totalMinutes + ' min';
+      routeSummary.textContent = distance + ' · about ' + duration;
+      routeDetails.textContent = 'Live route updated ' + new Date().toLocaleTimeString() +
+        '. It recalculates when the technician moves.';
+
+      if (force || !fittedLiveLocation) {
+        map.fitBounds(routeLine.getBounds(), { padding: [55, 55], maxZoom: 17 });
+        fittedLiveLocation = true;
+      }
+    } catch (error) {
+      if (currentRequest !== routeRequestNumber) return;
+      if (routeLine) {
+        map.removeLayer(routeLine);
+        routeLine = null;
+      }
+      routeSummary.textContent = 'Route temporarily unavailable';
+      routeDetails.textContent = 'You can still use Open in Waze for navigation.';
+    }
   }
 
   function useCustomerGps() {
@@ -269,6 +399,7 @@
       const response = await fetch(locationsApi);
       if (!response.ok) throw new Error('Unable to retrieve technician locations.');
       const data = await response.json();
+      latestTechnicians = data.technicians;
       technicianMarkers.forEach(marker => map.removeLayer(marker));
       technicianMarkers = [];
 
@@ -287,12 +418,7 @@
           : 'Your technician is currently not sharing a location.';
       }
 
-      if (!fittedLiveLocation && data.technicians.length) {
-        const points = customers.map(item => [item.latitude, item.longitude]);
-        points.push(...data.technicians.map(item => [item.latitude, item.longitude]));
-        map.fitBounds(points, { padding: [55, 55], maxZoom: 17 });
-        fittedLiveLocation = true;
-      }
+      updateLiveRoute();
     } catch (error) {
       document.getElementById('map-live-message').textContent = error.message;
     }

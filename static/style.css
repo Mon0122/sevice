@@ -937,6 +937,75 @@ dd {
   grid-column: 1 / -1;
 }
 
+.route-control {
+  background: linear-gradient(110deg, #f8fbff, #f1f7ff);
+}
+
+.route-status-copy {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.route-status-copy h2 {
+  margin-bottom: 3px;
+  font-size: 0.9rem;
+}
+
+.route-status-copy strong {
+  display: block;
+  color: var(--navy);
+  font-size: 1.03rem;
+}
+
+.route-status-copy p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.route-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 11px;
+  background: #dce9ff;
+  color: #2563eb;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.route-actions {
+  display: flex;
+  align-items: end;
+  gap: 9px;
+}
+
+.route-actions label {
+  min-width: 210px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.route-actions select {
+  height: 42px;
+  min-width: 210px;
+  padding: 8px 10px;
+  background: #ffffff;
+}
+
+.waze-button {
+  height: 42px;
+  white-space: nowrap;
+}
+
+.button.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .map-footer {
   display: flex;
   align-items: center;
@@ -1024,6 +1093,10 @@ dd {
   .location-editor-actions { width: 100%; }
   .location-editor-actions .button,
   .sharing-control .button { flex: 1; width: 100%; }
+  .route-actions { align-items: stretch; flex-direction: column; width: 100%; }
+  .route-actions label,
+  .route-actions select,
+  .route-actions .button { width: 100%; }
   .customer-location-editor .map-control-message { grid-column: auto; }
   .map-footer { align-items: flex-start; flex-direction: column; gap: 0; padding-top: 7px; padding-bottom: 13px; }
   .map-live-message { padding-bottom: 4px; text-align: left; }

@@ -34,6 +34,9 @@ New users can choose Customer or Technician on the Create Account page.
 
 The map includes Street Map and Satellite buttons. The satellite view uses Esri
 World Imagery so this classroom project does not need a paid Google Maps API key.
+When the technician shares GPS, the map draws a live driving route and updates
+the estimated distance and travel time. Technicians can also open the selected
+customer destination in Waze for turn-by-turn navigation.
 
 Browser GPS works on localhost during development. A deployed website must use
 HTTPS before browsers will allow location access.
