@@ -5,18 +5,7 @@ DROP TABLE IF EXISTS status_history;
 DROP TABLE IF EXISTS appointments;
 DROP TABLE IF EXISTS service_requests;
 DROP TABLE IF EXISTS service_types;
-DROP TABLE IF EXISTS customers;
-DROP TABLE IF EXISTS technicians;
-DROP TABLE IF EXISTS user_permissions;
-DROP TABLE IF EXISTS user_groups;
 DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS django_admin_log;
-DROP TABLE IF EXISTS django_session;
-DROP TABLE IF EXISTS django_migrations;
-DROP TABLE IF EXISTS django_content_type;
-DROP TABLE IF EXISTS auth_group_permissions;
-DROP TABLE IF EXISTS auth_permission;
-DROP TABLE IF EXISTS auth_group;
 
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
