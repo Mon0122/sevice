@@ -62,7 +62,7 @@
     {% else %}
       <a href="{{ url_for('requests_page', view='available') }}"><span class="action-symbol">＋</span><span><strong>Available Jobs</strong><small>Accept a customer request</small></span><b>›</b></a>
       <a href="{{ url_for('schedule') }}"><span class="action-symbol">▣</span><span><strong>My Schedule</strong><small>Check today's appointments</small></span><b>›</b></a>
-      <a href="{{ url_for('share_location') }}"><span class="action-symbol">⌖</span><span><strong>Share GPS</strong><small>Let customers track your location</small></span><b>›</b></a>
+      <a href="{{ url_for('live_map') }}"><span class="action-symbol">⌖</span><span><strong>Customer Map</strong><small>View jobs and control GPS sharing</small></span><b>›</b></a>
     {% endif %}
   </section>
 

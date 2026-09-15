@@ -1,509 +1,397 @@
 {% extends 'base.html' %}
 
-{% block title %}
-GPS Map - ServiceFlow
-{% endblock %}
-
+{% block title %}{{ 'My Service Map' if current_user.role == 'customer' else 'Customer Map' }} - ServiceFlow{% endblock %}
 
 {% block head %}
-
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 {% endblock %}
-
 
 {% block content %}
-
-<div class="page-heading">
-
+<div class="page-heading map-page-heading">
   <div>
-
-    <p class="eyebrow">
-      LIVE TRACKING
-    </p>
-
-    <h1>
-
-      {% if current_user.role == 'customer' %}
-
-        Track My Technician
-
-      {% else %}
-
-        Customer Map
-
-      {% endif %}
-
-    </h1>
-
-
+    <p class="eyebrow">LIVE SERVICE MAP</p>
+    <h1>{{ 'My Service Map' if current_user.role == 'customer' else 'Customer Map & GPS Sharing' }}</h1>
     <p class="muted">
-
       {% if current_user.role == 'customer' %}
-
-        Track the technician assigned to your active service request.
-
+        Adjust your service pin and see your technician when location sharing is allowed.
       {% else %}
-
-        View the customer's service location and share your live GPS position.
-
+        View your scheduled customers and choose when they can see your live location.
       {% endif %}
-
     </p>
-
   </div>
-
-
-  {% if current_user.role == 'technician' %}
-
-    <a
-      class="button"
-      href="{{ url_for('share_location') }}"
-    >
-      Share My Location
-    </a>
-
-  {% endif %}
-
 </div>
 
+{% if current_user.role == 'technician' %}
+  <section class="map-control-card sharing-control">
+    <div class="sharing-status-copy">
+      <span id="sharing-dot" class="sharing-dot" aria-hidden="true"></span>
+      <div>
+        <h2 id="sharing-title">Location sharing is off</h2>
+        <p id="sharing-message">Only customers with a Scheduled or In Progress job assigned to you can see your location.</p>
+      </div>
+    </div>
+    <button id="sharing-toggle" type="button" class="button" onclick="toggleSharing()">Start Sharing</button>
+  </section>
+{% elif customers %}
+  <section class="map-control-card customer-location-editor">
+    <div class="location-editor-fields">
+      <label for="request-selector">
+        Service Request
+        <select id="request-selector" onchange="selectCustomer(this.value)">
+          {% for customer in customers %}
+            <option value="{{ customer.request_id }}" {% if selected_request == customer.request_id %}selected{% endif %}>
+              #{{ customer.request_id }} · {{ customer.service_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label for="service-address">
+        Service Address
+        <input id="service-address" type="text" value="{{ customers[0].address or '' }}" placeholder="House number, street, barangay, city">
+      </label>
+    </div>
+    <div class="location-editor-actions">
+      <button type="button" class="button secondary" onclick="useCustomerGps()">Use My GPS</button>
+      <button type="button" class="button" onclick="saveCustomerLocation()">Save Pin & Address</button>
+    </div>
+    <p id="location-editor-message" class="map-control-message">Drag your green pin to the exact service location, then save.</p>
+  </section>
+{% else %}
+  <div class="alert">Create an active service request with a location before using the map.</div>
+{% endif %}
 
 <section class="panel map-panel">
+  <div id="map"
+       data-role="{{ current_user.role }}"
+       data-locations-url="{{ url_for('locations_api') }}"
+       data-sharing-url="{{ url_for('sharing_api') }}"
+       data-location-url="{{ url_for('location_api') }}"
+       data-customer-location-url="{{ url_for('customer_location_api') }}"></div>
 
-  <div
-    id="map"
-    data-role="{{ current_user.role }}"
-    data-locations-url="{{ url_for('locations_api') }}"
-  ></div>
-
-
-  <div class="map-legend">
-
-    <span>
-      <i class="pin technician"></i>
-      Technician
-    </span>
-
-    <span>
-      <i class="pin customer"></i>
-      Customer
-    </span>
-
+  <div class="map-footer">
+    <div class="map-legend">
+      <span><i class="pin technician"></i>Technician</span>
+      <span><i class="pin customer"></i>Customer service pin</span>
+    </div>
+    <p id="map-live-message" class="map-live-message">
+      {% if current_user.role == 'customer' %}
+        The technician pin appears only while your assigned technician is sharing.
+      {% else %}
+        GPS sharing stops when you leave this page.
+      {% endif %}
+    </p>
   </div>
-
 </section>
-
 {% endblock %}
 
-
 {% block scripts %}
-
-<script
-  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-></script>
-
-
-<!-- CUSTOMER DATA FROM FLASK -->
-
-<script
-  id="customers-data"
-  type="application/json"
->
-  {{ customers|tojson }}
-</script>
-
-
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script id="customers-data" type="application/json">{{ customers|tojson }}</script>
 <script>
+  const mapElement = document.getElementById('map');
+  const currentRole = mapElement.dataset.role;
+  const customers = JSON.parse(document.getElementById('customers-data').textContent);
+  const locationsApi = mapElement.dataset.locationsUrl;
+  const sharingApi = mapElement.dataset.sharingUrl;
+  const locationApi = mapElement.dataset.locationUrl;
+  const customerLocationApi = mapElement.dataset.customerLocationUrl;
 
-  /* =========================================
-     GET DATA
-  ========================================= */
-
-  const mapElement =
-    document.getElementById('map');
-
-
-  const customers = JSON.parse(
-    document.getElementById('customers-data').textContent
+  const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  });
+  const satelliteMap = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Satellite imagery &copy; Esri' }
   );
 
+  const map = L.map('map', { layers: [streetMap] }).setView([14.2781, 121.4150], 13);
+  L.control.layers({ 'Street Map': streetMap, 'Satellite': satelliteMap }, null, {
+    collapsed: false,
+    position: 'topright'
+  }).addTo(map);
 
-  const currentRole =
-    mapElement.dataset.role;
+  const customerIcon = L.divIcon({
+    className: 'map-pin-wrap',
+    html: '<span class="map-pin customer-map-pin"></span>',
+    iconSize: [34, 42],
+    iconAnchor: [17, 40],
+    popupAnchor: [0, -37]
+  });
+  const technicianIcon = L.divIcon({
+    className: 'map-pin-wrap',
+    html: '<span class="map-pin technician-map-pin"></span>',
+    iconSize: [34, 42],
+    iconAnchor: [17, 40],
+    popupAnchor: [0, -37]
+  });
 
+  const customerMarkers = new Map();
+  const accuracyCircles = new Map();
+  let selectedCustomer = null;
+  let technicianMarkers = [];
+  let fittedLiveLocation = false;
 
-  const locationsApi =
-    mapElement.dataset.locationsUrl;
+  function escapeHtml(value) {
+    const div = document.createElement('div');
+    div.textContent = value || '';
+    return div.innerHTML;
+  }
 
+  function customerPopup(customer) {
+    let text = '<b>' + escapeHtml(customer.name) + '</b>' +
+      '<br>' + escapeHtml(customer.service_name) + ' · Request #' + customer.request_id;
+    if (customer.address) text += '<br>' + escapeHtml(customer.address);
+    if (customer.status) text += '<br><br>Status: ' + escapeHtml(customer.status);
+    return text;
+  }
 
-  /* =========================================
-     CREATE MAP
-  ========================================= */
+  customers.forEach(function(customer) {
+    const marker = L.marker([customer.latitude, customer.longitude], {
+      icon: customerIcon,
+      draggable: currentRole === 'customer'
+    }).addTo(map).bindPopup(customerPopup(customer));
 
-  const map = L.map(
-    'map'
-  ).setView(
-    [14.2781, 121.4150],
-    13
-  );
+    marker.on('click', function() {
+      if (currentRole === 'customer') selectCustomer(customer.request_id, false);
+    });
+    marker.on('dragend', function() {
+      const point = marker.getLatLng();
+      customer.latitude = point.lat;
+      customer.longitude = point.lng;
+      customer.location_accuracy = null;
+      const accuracyCircle = accuracyCircles.get(String(customer.request_id));
+      if (accuracyCircle) {
+        map.removeLayer(accuracyCircle);
+        accuracyCircles.delete(String(customer.request_id));
+      }
+      selectCustomer(customer.request_id, false);
+      document.getElementById('location-editor-message').textContent = 'Pin moved. Click Save Pin & Address to keep this location.';
+    });
+    customerMarkers.set(String(customer.request_id), marker);
 
-
-  /* =========================================
-     OPENSTREETMAP
-  ========================================= */
-
-  L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+    if (customer.location_accuracy) {
+      accuracyCircles.set(String(customer.request_id), L.circle([customer.latitude, customer.longitude], {
+        radius: customer.location_accuracy,
+        color: '#0f766e',
+        weight: 1,
+        fillOpacity: 0.07
+      }).addTo(map));
     }
-  ).addTo(map);
-
-
-  /* =========================================
-     CUSTOMER LOCATIONS
-  ========================================= */
-
-  const customerMarkers = [];
-
-
-  customers.forEach(
-    function(customer) {
-
-
-      /* CUSTOMER MARKER */
-
-      const marker = L.circleMarker(
-        [
-          customer.latitude,
-          customer.longitude
-        ],
-        {
-          radius: 9,
-          color: '#0f766e',
-          fillColor: '#0f766e',
-          fillOpacity: 0.95,
-          weight: 3
-        }
-      ).addTo(map);
-
-
-      /* CUSTOMER POPUP */
-
-      let popup =
-        '<b>' +
-        customer.name +
-        '</b>';
-
-
-      if (customer.address) {
-
-        popup +=
-          '<br>' +
-          customer.address;
-
-      }
-
-
-      if (customer.location_accuracy) {
-
-        popup +=
-          '<br><br>GPS accuracy: approximately ' +
-          Math.round(
-            customer.location_accuracy
-          ) +
-          ' meters';
-
-      }
-
-
-      marker.bindPopup(
-        popup
-      );
-
-
-      customerMarkers.push(
-        marker
-      );
-
-
-      /* GPS ACCURACY CIRCLE */
-
-      if (customer.location_accuracy) {
-
-        L.circle(
-          [
-            customer.latitude,
-            customer.longitude
-          ],
-          {
-            radius:
-              customer.location_accuracy,
-
-            color:
-              '#0f766e',
-
-            weight:
-              1,
-
-            fillOpacity:
-              0.08
-          }
-        ).addTo(map);
-
-      }
-
-    }
-  );
-
-
-  /* =========================================
-     ZOOM TO CUSTOMER
-  ========================================= */
+  });
 
   if (customers.length === 1) {
-
-    map.setView(
-      [
-        customers[0].latitude,
-        customers[0].longitude
-      ],
-      18
-    );
-
+    map.setView([customers[0].latitude, customers[0].longitude], 17);
+  } else if (customers.length > 1) {
+    map.fitBounds(customers.map(item => [item.latitude, item.longitude]), { padding: [45, 45], maxZoom: 16 });
   }
 
-
-  else if (customers.length > 1) {
-
-    const bounds =
-      L.latLngBounds(
-
-        customers.map(
-          function(customer) {
-
-            return [
-              customer.latitude,
-              customer.longitude
-            ];
-
-          }
-        )
-
-      );
-
-
-    map.fitBounds(
-      bounds,
-      {
-        padding: [40, 40],
-        maxZoom: 17
-      }
-    );
-
+  function selectCustomer(requestId, moveMap = true) {
+    selectedCustomer = customers.find(item => String(item.request_id) === String(requestId));
+    if (!selectedCustomer) return;
+    const selector = document.getElementById('request-selector');
+    const address = document.getElementById('service-address');
+    if (selector) selector.value = String(selectedCustomer.request_id);
+    if (address) address.value = selectedCustomer.address || '';
+    const marker = customerMarkers.get(String(selectedCustomer.request_id));
+    if (moveMap && marker) {
+      map.setView(marker.getLatLng(), 17);
+      marker.openPopup();
+    }
   }
 
+  if (currentRole === 'customer' && customers.length) {
+    const selector = document.getElementById('request-selector');
+    selectCustomer(selector ? selector.value : customers[0].request_id, false);
+  }
 
-  /* =========================================
-     TECHNICIAN LOCATIONS
-  ========================================= */
+  function useCustomerGps() {
+    const message = document.getElementById('location-editor-message');
+    if (!navigator.geolocation) {
+      message.textContent = 'GPS is not supported by this browser.';
+      return;
+    }
+    message.textContent = 'Finding your current location...';
+    navigator.geolocation.getCurrentPosition(function(position) {
+      const marker = customerMarkers.get(String(selectedCustomer.request_id));
+      selectedCustomer.latitude = position.coords.latitude;
+      selectedCustomer.longitude = position.coords.longitude;
+      selectedCustomer.location_accuracy = position.coords.accuracy;
+      marker.setLatLng([selectedCustomer.latitude, selectedCustomer.longitude]);
+      const oldAccuracyCircle = accuracyCircles.get(String(selectedCustomer.request_id));
+      if (oldAccuracyCircle) map.removeLayer(oldAccuracyCircle);
+      accuracyCircles.set(String(selectedCustomer.request_id), L.circle(marker.getLatLng(), {
+        radius: selectedCustomer.location_accuracy,
+        color: '#0f766e',
+        weight: 1,
+        fillOpacity: 0.07
+      }).addTo(map));
+      map.setView(marker.getLatLng(), 18);
+      message.textContent = 'GPS pin updated. Click Save Pin & Address to keep it.';
+    }, function(error) {
+      message.textContent = 'Could not get your GPS location: ' + error.message;
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+  }
 
-  let technicianMarkers = [];
-
-
-  /* =========================================
-     REFRESH LIVE LOCATION
-  ========================================= */
+  async function saveCustomerLocation() {
+    const message = document.getElementById('location-editor-message');
+    const address = document.getElementById('service-address').value.trim();
+    if (!selectedCustomer || !address) {
+      message.textContent = 'Choose a request and enter the service address.';
+      return;
+    }
+    message.textContent = 'Saving location...';
+    try {
+      const response = await fetch(customerLocationApi, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          request_id: selectedCustomer.request_id,
+          latitude: selectedCustomer.latitude,
+          longitude: selectedCustomer.longitude,
+          accuracy: selectedCustomer.location_accuracy,
+          address: address
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to save location.');
+      customers.forEach(item => { item.address = data.address; });
+      selectedCustomer.address = data.address;
+      customerMarkers.get(String(selectedCustomer.request_id)).bindPopup(customerPopup(selectedCustomer));
+      message.textContent = 'Service pin and address saved successfully.';
+    } catch (error) {
+      message.textContent = error.message;
+    }
+  }
 
   async function refreshLocations() {
-
     try {
-
-
-      /* GET LOCATION DATA */
-
-      const response =
-        await fetch(
-          locationsApi
-        );
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          'Unable to retrieve technician locations.'
-        );
-
-      }
-
-
-      const data =
-        await response.json();
-
-
-      /* REMOVE OLD TECHNICIAN MARKERS */
-
-      technicianMarkers.forEach(
-        function(marker) {
-
-          map.removeLayer(
-            marker
-          );
-
-        }
-      );
-
-
+      const response = await fetch(locationsApi);
+      if (!response.ok) throw new Error('Unable to retrieve technician locations.');
+      const data = await response.json();
+      technicianMarkers.forEach(marker => map.removeLayer(marker));
       technicianMarkers = [];
 
+      data.technicians.forEach(function(technician) {
+        const marker = L.marker([technician.latitude, technician.longitude], { icon: technicianIcon })
+          .addTo(map)
+          .bindPopup('<b>' + escapeHtml(technician.name) + '</b><br>Updated: ' +
+            new Date(technician.recorded_at).toLocaleString());
+        technicianMarkers.push(marker);
+      });
 
-      /* ADD UPDATED TECHNICIAN MARKERS */
-
-      data.technicians.forEach(
-        function(technician) {
-
-          const marker =
-            L.circleMarker(
-              [
-                technician.latitude,
-                technician.longitude
-              ],
-              {
-                radius: 10,
-                color: '#e76f51',
-                fillColor: '#e76f51',
-                fillOpacity: 0.95,
-                weight: 3
-              }
-            )
-            .addTo(map)
-            .bindPopup(
-
-              '<b>' +
-              technician.name +
-              '</b>' +
-
-              '<br>Updated: ' +
-
-              new Date(
-                technician.recorded_at
-              ).toLocaleString()
-
-            );
-
-
-          technicianMarkers.push(
-            marker
-          );
-
-        }
-      );
-
-
-      /* =====================================
-         CUSTOMER TRACKING TECHNICIAN
-      ===================================== */
-
-      if (
-        currentRole === 'customer' &&
-        data.technicians.length > 0 &&
-        customers.length === 0
-      ) {
-
-        const technician =
-          data.technicians[0];
-
-
-        map.setView(
-          [
-            technician.latitude,
-            technician.longitude
-          ],
-          17
-        );
-
+      const liveMessage = document.getElementById('map-live-message');
+      if (currentRole === 'customer') {
+        liveMessage.textContent = data.technicians.length
+          ? 'Your assigned technician is sharing a live location. Updated every 10 seconds.'
+          : 'Your technician is currently not sharing a location.';
       }
 
-
-      /* =====================================
-         SHOW CUSTOMER + TECHNICIAN TOGETHER
-      ===================================== */
-
-      if (
-        customers.length === 1 &&
-        data.technicians.length > 0
-      ) {
-
-        const points = [
-
-          [
-            customers[0].latitude,
-            customers[0].longitude
-          ],
-
-          [
-            data.technicians[0].latitude,
-            data.technicians[0].longitude
-          ]
-
-        ];
-
-
-        map.fitBounds(
-          points,
-          {
-            padding: [60, 60],
-            maxZoom: 18
-          }
-        );
-
+      if (!fittedLiveLocation && data.technicians.length) {
+        const points = customers.map(item => [item.latitude, item.longitude]);
+        points.push(...data.technicians.map(item => [item.latitude, item.longitude]));
+        map.fitBounds(points, { padding: [55, 55], maxZoom: 17 });
+        fittedLiveLocation = true;
       }
-
+    } catch (error) {
+      document.getElementById('map-live-message').textContent = error.message;
     }
-
-
-    catch (error) {
-
-      console.error(
-        'Location refresh error:',
-        error
-      );
-
-    }
-
   }
 
+  let watchId = null;
+  let sharingEnabled = false;
+  const sharingButton = document.getElementById('sharing-toggle');
+  const sharingTitle = document.getElementById('sharing-title');
+  const sharingMessage = document.getElementById('sharing-message');
+  const sharingDot = document.getElementById('sharing-dot');
 
-  /* =========================================
-     START LIVE TRACKING
-  ========================================= */
+  async function setServerSharing(enabled) {
+    const response = await fetch(sharingApi, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enabled })
+    });
+    if (!response.ok) throw new Error('Could not change location sharing.');
+  }
 
-  refreshLocations();
+  async function stopSharing() {
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    sharingEnabled = false;
+    await setServerSharing(false);
+    sharingButton.textContent = 'Start Sharing';
+    sharingButton.classList.remove('danger');
+    sharingButton.disabled = false;
+    sharingTitle.textContent = 'Location sharing is off';
+    sharingMessage.textContent = 'Only your assigned Scheduled or In Progress customers can see your location.';
+    sharingDot.classList.remove('active');
+    refreshLocations();
+  }
 
+  async function toggleSharing() {
+    if (sharingEnabled || watchId !== null) {
+      await stopSharing();
+      return;
+    }
+    if (!navigator.geolocation) {
+      sharingMessage.textContent = 'GPS is not supported by this browser.';
+      return;
+    }
+    sharingButton.disabled = true;
+    sharingButton.textContent = 'Waiting for GPS...';
+    sharingMessage.textContent = 'Allow location access in your browser to begin sharing.';
 
-  setInterval(
-    refreshLocations,
-    10000
-  );
+    watchId = navigator.geolocation.watchPosition(async function(position) {
+      try {
+        if (!sharingEnabled) {
+          await setServerSharing(true);
+          sharingEnabled = true;
+          sharingButton.disabled = false;
+          sharingButton.textContent = 'Stop Sharing';
+          sharingButton.classList.add('danger');
+          sharingTitle.textContent = 'Sharing live location';
+          sharingDot.classList.add('active');
+        }
+        const response = await fetch(locationApi, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          })
+        });
+        if (!response.ok) throw new Error('Location update was not saved.');
+        sharingMessage.textContent = 'Last update: ' + new Date().toLocaleTimeString() +
+          ' · Accuracy: about ' + Math.round(position.coords.accuracy) + ' meters';
+        refreshLocations();
+      } catch (error) {
+        sharingMessage.textContent = error.message;
+      }
+    }, async function(error) {
+      watchId = null;
+      sharingEnabled = false;
+      sharingButton.disabled = false;
+      sharingButton.textContent = 'Start Sharing';
+      sharingMessage.textContent = 'GPS error: ' + error.message;
+      try { await setServerSharing(false); } catch (_) {}
+    }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 });
+  }
 
+  if (currentRole === 'technician') {
+    setServerSharing(false).then(refreshLocations).catch(function(error) {
+      sharingMessage.textContent = error.message;
+    });
+    window.addEventListener('beforeunload', function() {
+      if (sharingEnabled || watchId !== null) {
+        navigator.sendBeacon(sharingApi, new Blob([JSON.stringify({ enabled: false })], { type: 'application/json' }));
+      }
+    });
+  } else {
+    refreshLocations();
+  }
 
-  /* =========================================
-     FIX LEAFLET MAP SIZE
-  ========================================= */
-
-  setTimeout(
-    function() {
-
-      map.invalidateSize();
-
-    },
-    200
-  );
-
+  setInterval(refreshLocations, 10000);
+  setTimeout(function() { map.invalidateSize(); }, 200);
 </script>
-
 {% endblock %}

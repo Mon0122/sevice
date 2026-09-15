@@ -853,14 +853,111 @@ dd {
 }
 
 #map {
-  height: 580px;
+  height: 590px;
+  background: #dce7ec;
+}
+
+.map-page-heading {
+  margin-bottom: 18px;
+}
+
+.map-control-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+  padding: 17px 19px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.sharing-status-copy {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.sharing-status-copy h2 {
+  margin-bottom: 3px;
+  font-size: 1rem;
+}
+
+.sharing-status-copy p,
+.map-control-message {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.sharing-dot {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #94a3b8;
+  box-shadow: 0 0 0 5px #eef2f6;
+}
+
+.sharing-dot.active {
+  background: #22c55e;
+  box-shadow: 0 0 0 5px #dcfce7;
+}
+
+.customer-location-editor {
+  display: grid;
+  grid-template-columns: 1fr auto;
+}
+
+.location-editor-fields {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.7fr) minmax(280px, 1.3fr);
+  gap: 13px;
+}
+
+.location-editor-fields label {
+  font-size: 0.78rem;
+}
+
+.location-editor-fields input,
+.location-editor-fields select {
+  height: 43px;
+  padding: 9px 11px;
+}
+
+.location-editor-actions {
+  display: flex;
+  align-self: end;
+  gap: 8px;
+}
+
+.customer-location-editor .map-control-message {
+  grid-column: 1 / -1;
+}
+
+.map-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 20px;
 }
 
 .map-legend {
   display: flex;
   gap: 25px;
 
-  padding: 14px 20px;
+  padding: 14px 0;
+  white-space: nowrap;
+}
+
+.map-live-message {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: right;
 }
 
 .pin {
@@ -882,50 +979,60 @@ dd {
   background: var(--teal);
 }
 
-
-/* =========================================================
-   GPS / LOCATION SHARING
-========================================================= */
-
-.sharing-card {
-  max-width: 600px;
-
-  margin: auto;
-  padding: 50px;
-
-  text-align: center;
+.map-pin-wrap {
+  border: 0;
+  background: transparent;
 }
 
-.gps-icon {
-  width: 100px;
-  height: 100px;
-
+.map-pin {
+  width: 34px;
+  height: 34px;
   display: grid;
+  position: relative;
   place-items: center;
-
-  margin: 0 auto 22px;
-
-  border-radius: 50%;
-
-  background: #e8eef4;
-  color: var(--navy);
-
+  border: 3px solid #ffffff;
+  border-radius: 50% 50% 50% 0;
+  color: #ffffff;
+  box-shadow: 0 3px 9px rgba(15, 37, 55, 0.3);
+  font-size: 0.76rem;
   font-weight: 900;
+  transform: rotate(-45deg);
 }
 
-.gps-icon.active {
-  background: #dcfce7;
-  color: #15803d;
-
-  box-shadow: 0 0 0 12px #f0fdf4;
+.map-pin::after {
+  transform: rotate(45deg);
 }
 
-.privacy-note {
-  margin: 22px 0 0;
+.map-pin.customer-map-pin { background: var(--teal); }
+.map-pin.technician-map-pin { background: var(--orange); }
+.map-pin.customer-map-pin::after { content: "C"; }
+.map-pin.technician-map-pin::after { content: "T"; }
 
-  color: var(--muted);
+.leaflet-control-layers-expanded {
+  padding: 8px 10px;
+  border: 0 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 3px 12px rgba(24, 45, 65, 0.18) !important;
+  font-family: inherit;
+}
 
-  font-size: 0.82rem;
+@media (max-width: 800px) {
+  #map { height: 500px; }
+  .map-control-card,
+  .customer-location-editor { align-items: stretch; grid-template-columns: 1fr; flex-direction: column; }
+  .location-editor-fields { grid-template-columns: 1fr; width: 100%; }
+  .location-editor-actions { width: 100%; }
+  .location-editor-actions .button,
+  .sharing-control .button { flex: 1; width: 100%; }
+  .customer-location-editor .map-control-message { grid-column: auto; }
+  .map-footer { align-items: flex-start; flex-direction: column; gap: 0; padding-top: 7px; padding-bottom: 13px; }
+  .map-live-message { padding-bottom: 4px; text-align: left; }
+}
+
+@media (max-width: 480px) {
+  #map { height: 430px; }
+  .location-editor-actions { flex-direction: column; }
+  .map-legend { align-items: flex-start; flex-direction: column; gap: 8px; }
 }
 
 

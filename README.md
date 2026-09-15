@@ -27,8 +27,13 @@ You do not need it while working on the Flask project.
 - Technician: `technician` / `Tech2026!`
 
 Customers request a service and track their assigned technician. Technicians
-accept available requests, schedule the visit, update the status, and share GPS.
+accept available requests, schedule the visit, update the status, and control GPS
+sharing from Customer Map. A customer can see only the assigned technician for a
+Scheduled or In Progress request, and only while that technician is sharing.
 New users can choose Customer or Technician on the Create Account page.
+
+The map includes Street Map and Satellite buttons. The satellite view uses Esri
+World Imagery so this classroom project does not need a paid Google Maps API key.
 
 Browser GPS works on localhost during development. A deployed website must use
 HTTPS before browsers will allow location access.

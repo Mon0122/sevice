@@ -101,6 +101,17 @@ Request Service - ServiceFlow
         can find the exact service location.
       </p>
 
+      <label>
+        Service Address
+        <input
+          type="text"
+          name="service_address"
+          value="{{ current_user.address or '' }}"
+          placeholder="House number, street, barangay, city"
+          required
+        >
+      </label>
+
 
       <button
         type="button"

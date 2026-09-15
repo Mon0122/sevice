@@ -51,7 +51,8 @@ def role_required(role):
 
 def visible_request(request_id):
     """Return a job only if the logged-in person is allowed to see it."""
-    sql = """SELECT r.*,c.full_name customer_name,c.phone customer_phone,c.address,
+    sql = """SELECT r.*,c.full_name customer_name,c.phone customer_phone,
+                    COALESCE(r.service_address,c.address) address,
                     c.latitude customer_latitude,c.longitude customer_longitude,
                     s.name service_name,a.id appointment_id,a.technician_id,
                     a.start_time,a.end_time,t.full_name technician_name
@@ -149,7 +150,8 @@ def dashboard():
                              JOIN users c ON c.id=r.customer_id JOIN service_types s ON s.id=r.service_type_id
                              WHERE a.technician_id=%s AND r.status NOT IN ('Completed','Cancelled')
                              ORDER BY a.start_time ASC LIMIT 5""", (g.user["id"],))
-        available_jobs = fetch_all("""SELECT r.id,r.preferred_date,c.full_name customer_name,c.address,
+        available_jobs = fetch_all("""SELECT r.id,r.preferred_date,c.full_name customer_name,
+                                             COALESCE(r.service_address,c.address) address,
                                              s.name service_name
                                       FROM service_requests r JOIN users c ON c.id=r.customer_id
                                       JOIN service_types s ON s.id=r.service_type_id
@@ -246,17 +248,19 @@ def request_new():
                 customer_id,
                 service_type_id,
                 description,
+                service_address,
                 preferred_date,
                 latitude,
                 longitude,
                 location_accuracy
             )
-            VALUES(%s,%s,%s,%s,%s,%s,%s)
+            VALUES(%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 g.user["id"],
                 request.form["service_type_id"],
                 request.form.get("description"),
+                request.form.get("service_address", "").strip() or g.user["address"],
                 request.form.get("preferred_date") or None,
                 latitude,
                 longitude,
@@ -359,7 +363,9 @@ def request_status(request_id):
 @login_required
 def schedule():
     selected = request.args.get("date", date.today().isoformat())
-    sql = """SELECT a.*,r.status,c.full_name customer_name,c.address,s.name service_name,t.full_name technician_name
+    sql = """SELECT a.*,r.status,c.full_name customer_name,
+                    COALESCE(r.service_address,c.address) address,
+                    s.name service_name,t.full_name technician_name
              FROM appointments a JOIN service_requests r ON r.id=a.request_id
              JOIN users c ON c.id=r.customer_id JOIN service_types s ON s.id=r.service_type_id
              JOIN users t ON t.id=a.technician_id WHERE DATE(a.start_time)=%s AND """
@@ -378,140 +384,90 @@ def notifications():
 @app.route("/map")
 @login_required
 def live_map():
-
+    selected_request = request.args.get("request", type=int)
     customers = []
 
-
-    # CUSTOMER VIEW
     if g.user["role"] == "customer":
-
-        selected_request = request.args.get(
-            "request",
-            type=int
-        )
-
+        sql = """SELECT r.id request_id,u.full_name name,
+                        COALESCE(r.service_address,u.address) address,
+                        COALESCE(r.latitude,u.latitude) latitude,
+                        COALESCE(r.longitude,u.longitude) longitude,
+                        r.location_accuracy,r.status,s.name service_name,a.start_time,
+                        t.full_name technician_name
+                 FROM service_requests r JOIN users u ON u.id=r.customer_id
+                 JOIN service_types s ON s.id=r.service_type_id
+                 LEFT JOIN appointments a ON a.request_id=r.id
+                 LEFT JOIN users t ON t.id=a.technician_id
+                 WHERE r.customer_id=%s AND r.status NOT IN ('Completed','Cancelled')
+                   AND COALESCE(r.latitude,u.latitude) IS NOT NULL
+                   AND COALESCE(r.longitude,u.longitude) IS NOT NULL"""
+        values = [g.user["id"]]
         if selected_request:
-
-            customer_location = fetch_one(
-                """
-                SELECT
-                    r.id request_id,
-                    u.full_name name,
-                    u.address,
-                    r.latitude,
-                    r.longitude,
-                    r.location_accuracy
-                FROM service_requests r
-                JOIN users u
-                    ON u.id = r.customer_id
-                WHERE r.id=%s
-                  AND r.customer_id=%s
-                  AND r.latitude IS NOT NULL
-                  AND r.longitude IS NOT NULL
-                """,
-                (
-                    selected_request,
-                    g.user["id"]
-                )
-            )
-
-            if customer_location:
-
-                customer_location["latitude"] = float(
-                    customer_location["latitude"]
-                )
-
-                customer_location["longitude"] = float(
-                    customer_location["longitude"]
-                )
-
-                if customer_location["location_accuracy"] is not None:
-                    customer_location["location_accuracy"] = float(
-                        customer_location["location_accuracy"]
-                    )
-
-                customers = [customer_location]
-
-
-    # TECHNICIAN VIEW
-    elif g.user["role"] == "technician":
-
-        selected_request = request.args.get(
-            "request",
-            type=int
-        )
-
-
-        sql = """
-            SELECT DISTINCT
-                r.id request_id,
-                c.full_name name,
-                c.address,
-                r.latitude,
-                r.longitude,
-                r.location_accuracy
-            FROM appointments a
-
-            JOIN service_requests r
-                ON r.id = a.request_id
-
-            JOIN users c
-                ON c.id = r.customer_id
-
-            WHERE a.technician_id=%s
-              AND r.latitude IS NOT NULL
-              AND r.longitude IS NOT NULL
-        """
-
-
-        values = [
-            g.user["id"]
-        ]
-
-
-        # If technician clicked Track for one particular request
-        if selected_request:
-
             sql += " AND r.id=%s"
+            values.append(selected_request)
+        customers = fetch_all(sql + " ORDER BY r.created_at DESC", values)
+    else:
+        sql = """SELECT DISTINCT r.id request_id,c.full_name name,
+                        COALESCE(r.service_address,c.address) address,
+                        COALESCE(r.latitude,c.latitude) latitude,
+                        COALESCE(r.longitude,c.longitude) longitude,
+                        r.location_accuracy,r.status,s.name service_name,a.start_time
+                 FROM appointments a JOIN service_requests r ON r.id=a.request_id
+                 JOIN users c ON c.id=r.customer_id
+                 JOIN service_types s ON s.id=r.service_type_id
+                 WHERE a.technician_id=%s AND r.status IN ('Scheduled','In Progress')
+                   AND COALESCE(r.latitude,c.latitude) IS NOT NULL
+                   AND COALESCE(r.longitude,c.longitude) IS NOT NULL"""
+        values = [g.user["id"]]
+        if selected_request:
+            sql += " AND r.id=%s"
+            values.append(selected_request)
+        customers = fetch_all(sql + " ORDER BY a.start_time", values)
 
-            values.append(
-                selected_request
-            )
+    for customer in customers:
+        customer["latitude"] = float(customer["latitude"])
+        customer["longitude"] = float(customer["longitude"])
+        if customer["location_accuracy"] is not None:
+            customer["location_accuracy"] = float(customer["location_accuracy"])
 
-
-        customers = fetch_all(
-            sql,
-            values
-        )
-
-
-        for customer in customers:
-
-            customer["latitude"] = float(
-                customer["latitude"]
-            )
-
-            customer["longitude"] = float(
-                customer["longitude"]
-            )
-
-            if customer["location_accuracy"] is not None:
-
-                customer["location_accuracy"] = float(
-                    customer["location_accuracy"]
-                )
-
-
-    return render_template(
-        "map.html",
-        customers=customers
-    )
+    return render_template("map.html", customers=customers, selected_request=selected_request)
 
 
 @app.route("/share-location")
 @role_required("technician")
 def share_location():
-    return render_template("share_location.html")
+    return redirect(url_for("live_map"))
+
+
+@app.post("/api/customer-location")
+@role_required("customer")
+def customer_location_api():
+    data = request.get_json(silent=True) or {}
+    try:
+        request_id = int(data["request_id"])
+        latitude = float(data["latitude"])
+        longitude = float(data["longitude"])
+        accuracy = float(data["accuracy"]) if data.get("accuracy") is not None else None
+        if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+            raise ValueError
+    except (KeyError, TypeError, ValueError):
+        return jsonify(error="Invalid location details"), 400
+
+    item = fetch_one("""SELECT id FROM service_requests
+                        WHERE id=%s AND customer_id=%s
+                          AND status NOT IN ('Completed','Cancelled')""",
+                     (request_id, g.user["id"]))
+    if not item:
+        return jsonify(error="This service request cannot be changed"), 403
+
+    address = str(data.get("address", "")).strip()
+    if not address:
+        return jsonify(error="Enter the service address"), 400
+
+    execute("""UPDATE service_requests
+               SET service_address=%s,latitude=%s,longitude=%s,location_accuracy=%s
+               WHERE id=%s""", (address, latitude, longitude, accuracy, request_id))
+    return jsonify(saved=True, address=address, latitude=latitude, longitude=longitude)
 
 
 @app.post("/api/sharing")
@@ -544,10 +500,14 @@ def locations_api():
     sql = """SELECT u.id,u.full_name name,l.latitude,l.longitude,l.accuracy,l.recorded_at
              FROM users u JOIN technician_locations l ON l.id=(SELECT id FROM technician_locations
              WHERE technician_id=u.id ORDER BY recorded_at DESC LIMIT 1)
-             WHERE u.role='technician' AND u.sharing_location=1"""
+             WHERE u.role='technician' AND u.sharing_location=1
+               AND l.recorded_at >= NOW() - INTERVAL 2 MINUTE"""
     values = []
     if g.user["role"] == "customer":
-        sql += " AND EXISTS(SELECT 1 FROM appointments a JOIN service_requests r ON r.id=a.request_id WHERE a.technician_id=u.id AND r.customer_id=%s AND r.status NOT IN ('Completed','Cancelled'))"
+        sql += """ AND EXISTS(SELECT 1 FROM appointments a
+                               JOIN service_requests r ON r.id=a.request_id
+                               WHERE a.technician_id=u.id AND r.customer_id=%s
+                                 AND r.status IN ('Scheduled','In Progress'))"""
     else:
         sql += " AND u.id=%s"
     values.append(g.user["id"])

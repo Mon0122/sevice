@@ -28,7 +28,6 @@
         <a class="{{ 'active' if (request.endpoint == 'requests_page' and request.args.get('view') == 'mine') or (request.endpoint == 'request_detail' and item is defined and item.appointment_id) }}" href="{{ url_for('requests_page', view='mine') }}">My Jobs</a>
         <a class="{{ 'active' if request.endpoint == 'schedule' }}" href="{{ url_for('schedule') }}">My Schedule</a>
         <a class="{{ 'active' if request.endpoint == 'live_map' }}" href="{{ url_for('live_map') }}">Customer Map</a>
-        <a class="{{ 'active' if request.endpoint == 'share_location' }}" href="{{ url_for('share_location') }}">Share GPS</a>
       {% endif %}
       <a class="{{ 'active' if request.endpoint == 'notifications' }}" href="{{ url_for('notifications') }}">Notifications{% if unread_count %} <b class="badge">{{ unread_count }}</b>{% endif %}</a>
     </nav>
