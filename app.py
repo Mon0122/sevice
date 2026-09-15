@@ -1,4 +1,4 @@
-"""ServiceFlow: a simple Flask project with Customer and Technician roles."""
+
 
 from datetime import date
 from functools import wraps
@@ -162,19 +162,116 @@ def requests_page():
     rows = fetch_all(sql + " ORDER BY r.created_at DESC", (g.user["id"],))
     return render_template("requests.html", rows=rows)
 
-
 @app.route("/requests/new", methods=["GET", "POST"])
 @role_required("customer")
 def request_new():
+
     if request.method == "POST":
+
+        latitude = request.form.get("latitude")
+        longitude = request.form.get("longitude")
+        location_accuracy = request.form.get("location_accuracy")
+
+        # Require the customer to add the service location
+        if not latitude or not longitude:
+            flash(
+                "Please add your current service location before sending the request.",
+                "error"
+            )
+
+            return render_template(
+                "request_form.html",
+                service_types=fetch_all(
+                    "SELECT * FROM service_types ORDER BY name"
+                )
+            )
+
+        try:
+            latitude = float(latitude)
+            longitude = float(longitude)
+
+            if not (-90 <= latitude <= 90):
+                raise ValueError
+
+            if not (-180 <= longitude <= 180):
+                raise ValueError
+
+        except (TypeError, ValueError):
+
+            flash(
+                "The service location is invalid. Please get your location again.",
+                "error"
+            )
+
+            return render_template(
+                "request_form.html",
+                service_types=fetch_all(
+                    "SELECT * FROM service_types ORDER BY name"
+                )
+            )
+
+
         request_id = execute(
-            "INSERT INTO service_requests(customer_id,service_type_id,description,preferred_date) VALUES(%s,%s,%s,%s)",
-            (g.user["id"], request.form["service_type_id"], request.form.get("description"), request.form.get("preferred_date") or None),
+            """
+            INSERT INTO service_requests(
+                customer_id,
+                service_type_id,
+                description,
+                preferred_date,
+                latitude,
+                longitude,
+                location_accuracy
+            )
+            VALUES(%s,%s,%s,%s,%s,%s,%s)
+            """,
+            (
+                g.user["id"],
+                request.form["service_type_id"],
+                request.form.get("description"),
+                request.form.get("preferred_date") or None,
+                latitude,
+                longitude,
+                location_accuracy or None
+            )
         )
-        execute("INSERT INTO status_history(request_id,status,note,changed_by) VALUES(%s,'Pending','Request created',%s)", (request_id, g.user["id"]))
-        flash("Your service request was created.", "success")
-        return redirect(url_for("request_detail", request_id=request_id))
-    return render_template("request_form.html", service_types=fetch_all("SELECT * FROM service_types ORDER BY name"))
+
+
+        execute(
+            """
+            INSERT INTO status_history(
+                request_id,
+                status,
+                note,
+                changed_by
+            )
+            VALUES(%s,'Pending','Request created',%s)
+            """,
+            (
+                request_id,
+                g.user["id"]
+            )
+        )
+
+
+        flash(
+            "Your service request was created.",
+            "success"
+        )
+
+        return redirect(
+            url_for(
+                "request_detail",
+                request_id=request_id
+            )
+        )
+
+
+    return render_template(
+        "request_form.html",
+        service_types=fetch_all(
+            "SELECT * FROM service_types ORDER BY name"
+        )
+    )
 
 
 @app.route("/requests/<int:request_id>")
@@ -249,26 +346,137 @@ def notifications():
     execute("UPDATE notifications SET is_read=1 WHERE user_id=%s", (g.user["id"],))
     return render_template("notifications.html", rows=rows)
 
-
 @app.route("/map")
 @login_required
 def live_map():
+
     customers = []
-    if g.user["role"] == "customer" and g.user["latitude"] is not None:
-        customers = [{"name": g.user["full_name"], "address": g.user["address"], "latitude": float(g.user["latitude"]), "longitude": float(g.user["longitude"])}]
-    elif g.user["role"] == "technician":
-        selected_request = request.args.get("request", type=int)
-        sql = """SELECT DISTINCT c.full_name name,c.address,c.latitude,c.longitude
-                                 FROM appointments a JOIN service_requests r ON r.id=a.request_id JOIN users c ON c.id=r.customer_id
-                                 WHERE a.technician_id=%s AND c.latitude IS NOT NULL"""
-        values = [g.user["id"]]
+
+
+    # CUSTOMER VIEW
+    if g.user["role"] == "customer":
+
+        selected_request = request.args.get(
+            "request",
+            type=int
+        )
+
         if selected_request:
+
+            customer_location = fetch_one(
+                """
+                SELECT
+                    r.id request_id,
+                    u.full_name name,
+                    u.address,
+                    r.latitude,
+                    r.longitude,
+                    r.location_accuracy
+                FROM service_requests r
+                JOIN users u
+                    ON u.id = r.customer_id
+                WHERE r.id=%s
+                  AND r.customer_id=%s
+                  AND r.latitude IS NOT NULL
+                  AND r.longitude IS NOT NULL
+                """,
+                (
+                    selected_request,
+                    g.user["id"]
+                )
+            )
+
+            if customer_location:
+
+                customer_location["latitude"] = float(
+                    customer_location["latitude"]
+                )
+
+                customer_location["longitude"] = float(
+                    customer_location["longitude"]
+                )
+
+                if customer_location["location_accuracy"] is not None:
+                    customer_location["location_accuracy"] = float(
+                        customer_location["location_accuracy"]
+                    )
+
+                customers = [customer_location]
+
+
+    # TECHNICIAN VIEW
+    elif g.user["role"] == "technician":
+
+        selected_request = request.args.get(
+            "request",
+            type=int
+        )
+
+
+        sql = """
+            SELECT DISTINCT
+                r.id request_id,
+                c.full_name name,
+                c.address,
+                r.latitude,
+                r.longitude,
+                r.location_accuracy
+            FROM appointments a
+
+            JOIN service_requests r
+                ON r.id = a.request_id
+
+            JOIN users c
+                ON c.id = r.customer_id
+
+            WHERE a.technician_id=%s
+              AND r.latitude IS NOT NULL
+              AND r.longitude IS NOT NULL
+        """
+
+
+        values = [
+            g.user["id"]
+        ]
+
+
+        # If technician clicked Track for one particular request
+        if selected_request:
+
             sql += " AND r.id=%s"
-            values.append(selected_request)
-        customers = fetch_all(sql, values)
+
+            values.append(
+                selected_request
+            )
+
+
+        customers = fetch_all(
+            sql,
+            values
+        )
+
+
         for customer in customers:
-            customer["latitude"], customer["longitude"] = float(customer["latitude"]), float(customer["longitude"])
-    return render_template("map.html", customers=customers)
+
+            customer["latitude"] = float(
+                customer["latitude"]
+            )
+
+            customer["longitude"] = float(
+                customer["longitude"]
+            )
+
+            if customer["location_accuracy"] is not None:
+
+                customer["location_accuracy"] = float(
+                    customer["location_accuracy"]
+                )
+
+
+    return render_template(
+        "map.html",
+        customers=customers
+    )
 
 
 @app.route("/share-location")

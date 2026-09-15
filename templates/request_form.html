@@ -1,10 +1,281 @@
 {% extends 'base.html' %}
-{% block title %}Request Service - ServiceFlow{% endblock %}
+
+{% block title %}
+Request Service - ServiceFlow
+{% endblock %}
+
+
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">CUSTOMER</p><h1>Request a service</h1><p class="muted">A technician can see and accept your request.</p></div></div>
-<form method="post" class="panel form-card"><div class="form-grid">
-  <label>Service type<select name="service_type_id" required>{% for item in service_types %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select></label>
-  <label>Preferred date<input name="preferred_date" type="date"></label>
-  <label class="full">What needs to be fixed?<textarea name="description" required placeholder="Describe the problem..."></textarea></label>
-</div><div class="form-actions"><a class="button secondary" href="{{ url_for('requests_page') }}">Cancel</a><button class="button">Send request</button></div></form>
+
+<div class="page-heading">
+
+  <div>
+
+    <p class="eyebrow">
+      CUSTOMER
+    </p>
+
+    <h1>
+      Request a Service
+    </h1>
+
+    <p class="muted">
+      A technician can see and accept your request.
+    </p>
+
+  </div>
+
+</div>
+
+
+<form
+  method="post"
+  class="panel form-card"
+>
+
+  <div class="form-grid">
+
+    <!-- SERVICE TYPE -->
+
+    <label>
+
+      Service Type
+
+      <select
+        name="service_type_id"
+        required
+      >
+
+        {% for item in service_types %}
+
+          <option value="{{ item.id }}">
+            {{ item.name }}
+          </option>
+
+        {% endfor %}
+
+      </select>
+
+    </label>
+
+
+    <!-- PREFERRED DATE -->
+
+    <label>
+
+      Preferred Date
+
+      <input
+        name="preferred_date"
+        type="date"
+      >
+
+    </label>
+
+
+    <!-- DESCRIPTION -->
+
+    <label class="full">
+
+      What needs to be fixed?
+
+      <textarea
+        name="description"
+        required
+        placeholder="Describe the problem..."
+      ></textarea>
+
+    </label>
+
+
+    <!-- SERVICE LOCATION -->
+
+    <div class="full service-location">
+
+      <label>
+        Service Location
+      </label>
+
+      <p class="muted">
+        Add your current location so the assigned technician
+        can find the exact service location.
+      </p>
+
+
+      <button
+        type="button"
+        class="button secondary"
+        onclick="getServiceLocation()"
+      >
+        Use My Current Location
+      </button>
+
+
+      <p
+        id="gps-note"
+        class="muted gps-note"
+      >
+        Location has not been added yet.
+      </p>
+
+
+      <!-- HIDDEN GPS VALUES -->
+
+      <input
+        type="hidden"
+        name="latitude"
+        id="latitude"
+      >
+
+      <input
+        type="hidden"
+        name="longitude"
+        id="longitude"
+      >
+
+      <input
+        type="hidden"
+        name="location_accuracy"
+        id="location_accuracy"
+      >
+
+    </div>
+
+  </div>
+
+
+  <!-- FORM BUTTONS -->
+
+  <div class="form-actions">
+
+    <a
+      class="button secondary"
+      href="{{ url_for('requests_page') }}"
+    >
+      Cancel
+    </a>
+
+    <button
+      type="submit"
+      class="button"
+    >
+      Send Request
+    </button>
+
+  </div>
+
+</form>
+
+{% endblock %}
+
+
+{% block scripts %}
+
+<script>
+
+function getServiceLocation() {
+
+  const note =
+    document.getElementById('gps-note');
+
+  const latitude =
+    document.getElementById('latitude');
+
+  const longitude =
+    document.getElementById('longitude');
+
+  const accuracy =
+    document.getElementById('location_accuracy');
+
+
+  /* Check if browser supports GPS */
+
+  if (!navigator.geolocation) {
+
+    note.textContent =
+      'Location services are not supported by this browser.';
+
+    return;
+
+  }
+
+
+  note.textContent =
+    'Getting your current location...';
+
+
+  /* Get current GPS position */
+
+  navigator.geolocation.getCurrentPosition(
+
+    function(position) {
+
+      latitude.value =
+        position.coords.latitude;
+
+      longitude.value =
+        position.coords.longitude;
+
+      accuracy.value =
+        position.coords.accuracy;
+
+
+      note.textContent =
+        'Location added successfully. Accuracy: ' +
+        Math.round(position.coords.accuracy) +
+        ' meters.';
+
+    },
+
+
+    function(error) {
+
+      switch (error.code) {
+
+        case error.PERMISSION_DENIED:
+
+          note.textContent =
+            'Location permission was denied. Please allow location access and try again.';
+
+          break;
+
+
+        case error.POSITION_UNAVAILABLE:
+
+          note.textContent =
+            'Your location is currently unavailable.';
+
+          break;
+
+
+        case error.TIMEOUT:
+
+          note.textContent =
+            'Getting your location took too long. Please try again.';
+
+          break;
+
+
+        default:
+
+          note.textContent =
+            'Unable to get your current location.';
+
+      }
+
+    },
+
+
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 15000
+    }
+
+  );
+
+}
+
+</script>
+
 {% endblock %}

@@ -1,8 +1,151 @@
 {% extends 'base.html' %}
-{% block title %}Requests - ServiceFlow{% endblock %}
+
+{% block title %}
+Requests - ServiceFlow
+{% endblock %}
+
+
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">{{ 'MY SERVICES' if current_user.role == 'customer' else 'TECHNICIAN JOBS' }}</p><h1>{{ 'My service requests' if current_user.role == 'customer' else 'Jobs' }}</h1><p class="muted">{% if current_user.role == 'technician' %}Pending requests are available to accept. Your accepted jobs also appear here.{% endif %}</p></div>{% if current_user.role == 'customer' %}<a class="button" href="{{ url_for('request_new') }}">+ Request service</a>{% endif %}</div>
-<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>{{ 'Service' if current_user.role == 'customer' else 'Customer' }}</th><th>Technician</th><th>Preferred date</th><th>Status</th></tr></thead><tbody>
-{% for row in rows %}<tr class="clickable" onclick="location.href='{{ url_for('request_detail', request_id=row.id) }}'"><td>#{{ row.id }}</td><td><b>{{ row.service_name if current_user.role == 'customer' else row.customer_name }}</b></td><td>{{ row.technician_name or 'Not accepted yet' }}</td><td>{{ row.preferred_date or 'Not specified' }}</td><td><span class="status">{{ row.status }}</span></td></tr>{% else %}<tr><td colspan="5" class="empty">No requests found.</td></tr>{% endfor %}
-</tbody></table></div></section>
+
+<div class="page-heading">
+
+  <div>
+
+    <p class="eyebrow">
+      {{ 'MY SERVICES'
+         if current_user.role == 'customer'
+         else 'TECHNICIAN JOBS' }}
+    </p>
+
+    <h1>
+      {{ 'My service requests'
+         if current_user.role == 'customer'
+         else 'Jobs' }}
+    </h1>
+
+    {% if current_user.role == 'technician' %}
+
+      <p class="muted">
+        Pending requests are available to accept.
+        Your accepted jobs also appear here.
+      </p>
+
+    {% endif %}
+
+  </div>
+
+
+  {% if current_user.role == 'customer' %}
+
+    <a
+      class="button"
+      href="{{ url_for('request_new') }}"
+    >
+      Request Service
+    </a>
+
+  {% endif %}
+
+</div>
+
+
+<section class="panel">
+
+  <div class="table-wrap">
+
+    <table>
+
+      <thead>
+
+        <tr>
+
+          <th>ID</th>
+
+          <th>
+            {{ 'Service'
+               if current_user.role == 'customer'
+               else 'Customer' }}
+          </th>
+
+          <th>Technician</th>
+
+          <th>Preferred Date</th>
+
+          <th>Status</th>
+
+        </tr>
+
+      </thead>
+
+
+      <tbody>
+
+        {% for row in rows %}
+
+          <tr
+            class="clickable"
+            data-url="{{ url_for('request_detail', request_id=row.id) }}"
+            onclick="window.location.href=this.dataset.url"
+          >
+
+            <td>
+              #{{ row.id }}
+            </td>
+
+
+            <td>
+
+              <b>
+                {{ row.service_name
+                   if current_user.role == 'customer'
+                   else row.customer_name }}
+              </b>
+
+            </td>
+
+
+            <td>
+              {{ row.technician_name or 'Not accepted yet' }}
+            </td>
+
+
+            <td>
+              {{ row.preferred_date or 'Not specified' }}
+            </td>
+
+
+            <td>
+
+              <span class="status">
+                {{ row.status }}
+              </span>
+
+            </td>
+
+          </tr>
+
+
+        {% else %}
+
+          <tr>
+
+            <td
+              colspan="5"
+              class="empty"
+            >
+              No requests found.
+            </td>
+
+          </tr>
+
+        {% endfor %}
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+</section>
+
 {% endblock %}

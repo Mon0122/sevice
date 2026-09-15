@@ -1,20 +1,509 @@
 {% extends 'base.html' %}
-{% block title %}GPS Map - ServiceFlow{% endblock %}
-{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
-{% block content %}
-<div class="page-heading"><div><p class="eyebrow">LIVE TRACKING</p><h1>{{ 'Track my technician' if current_user.role == 'customer' else 'Customer map' }}</h1><p class="muted">{% if current_user.role == 'customer' %}Only the technician assigned to your active request is shown.{% else %}See customer service locations and share your live GPS position.{% endif %}</p></div>{% if current_user.role == 'technician' %}<a class="button" href="{{ url_for('share_location') }}">Share my location</a>{% endif %}</div>
-<section class="panel map-panel"><div id="map"></div><div class="map-legend"><span><i class="pin technician"></i> Technician</span><span><i class="pin customer"></i> Customer</span></div></section>
+
+{% block title %}
+GPS Map - ServiceFlow
 {% endblock %}
-{% block scripts %}<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
-const customers = {{ customers|tojson }};
-const map = L.map('map').setView([14.5995, 120.9842], 11);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
-customers.forEach(c => L.circleMarker([c.latitude,c.longitude], {radius:8,color:'#0f766e',fillOpacity:.9}).addTo(map).bindPopup(`<b>${c.name}</b><br>${c.address}`));
-let technicianMarkers = [];
-async function refreshLocations(){
-  const response = await fetch('{{ url_for("locations_api") }}'); const data = await response.json();
-  technicianMarkers.forEach(marker => map.removeLayer(marker)); technicianMarkers = [];
-  data.technicians.forEach(t => technicianMarkers.push(L.circleMarker([t.latitude,t.longitude], {radius:10,color:'#e76f51',fillOpacity:.95}).addTo(map).bindPopup(`<b>${t.name}</b><br>Updated ${new Date(t.recorded_at).toLocaleString()}`)));
-}
-refreshLocations(); setInterval(refreshLocations, 10000);
-</script>{% endblock %}
+
+
+{% block head %}
+
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+{% endblock %}
+
+
+{% block content %}
+
+<div class="page-heading">
+
+  <div>
+
+    <p class="eyebrow">
+      LIVE TRACKING
+    </p>
+
+    <h1>
+
+      {% if current_user.role == 'customer' %}
+
+        Track My Technician
+
+      {% else %}
+
+        Customer Map
+
+      {% endif %}
+
+    </h1>
+
+
+    <p class="muted">
+
+      {% if current_user.role == 'customer' %}
+
+        Track the technician assigned to your active service request.
+
+      {% else %}
+
+        View the customer's service location and share your live GPS position.
+
+      {% endif %}
+
+    </p>
+
+  </div>
+
+
+  {% if current_user.role == 'technician' %}
+
+    <a
+      class="button"
+      href="{{ url_for('share_location') }}"
+    >
+      Share My Location
+    </a>
+
+  {% endif %}
+
+</div>
+
+
+<section class="panel map-panel">
+
+  <div
+    id="map"
+    data-role="{{ current_user.role }}"
+    data-locations-url="{{ url_for('locations_api') }}"
+  ></div>
+
+
+  <div class="map-legend">
+
+    <span>
+      <i class="pin technician"></i>
+      Technician
+    </span>
+
+    <span>
+      <i class="pin customer"></i>
+      Customer
+    </span>
+
+  </div>
+
+</section>
+
+{% endblock %}
+
+
+{% block scripts %}
+
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+></script>
+
+
+<!-- CUSTOMER DATA FROM FLASK -->
+
+<script
+  id="customers-data"
+  type="application/json"
+>
+  {{ customers|tojson }}
+</script>
+
+
+<script>
+
+  /* =========================================
+     GET DATA
+  ========================================= */
+
+  const mapElement =
+    document.getElementById('map');
+
+
+  const customers = JSON.parse(
+    document.getElementById('customers-data').textContent
+  );
+
+
+  const currentRole =
+    mapElement.dataset.role;
+
+
+  const locationsApi =
+    mapElement.dataset.locationsUrl;
+
+
+  /* =========================================
+     CREATE MAP
+  ========================================= */
+
+  const map = L.map(
+    'map'
+  ).setView(
+    [14.2781, 121.4150],
+    13
+  );
+
+
+  /* =========================================
+     OPENSTREETMAP
+  ========================================= */
+
+  L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }
+  ).addTo(map);
+
+
+  /* =========================================
+     CUSTOMER LOCATIONS
+  ========================================= */
+
+  const customerMarkers = [];
+
+
+  customers.forEach(
+    function(customer) {
+
+
+      /* CUSTOMER MARKER */
+
+      const marker = L.circleMarker(
+        [
+          customer.latitude,
+          customer.longitude
+        ],
+        {
+          radius: 9,
+          color: '#0f766e',
+          fillColor: '#0f766e',
+          fillOpacity: 0.95,
+          weight: 3
+        }
+      ).addTo(map);
+
+
+      /* CUSTOMER POPUP */
+
+      let popup =
+        '<b>' +
+        customer.name +
+        '</b>';
+
+
+      if (customer.address) {
+
+        popup +=
+          '<br>' +
+          customer.address;
+
+      }
+
+
+      if (customer.location_accuracy) {
+
+        popup +=
+          '<br><br>GPS accuracy: approximately ' +
+          Math.round(
+            customer.location_accuracy
+          ) +
+          ' meters';
+
+      }
+
+
+      marker.bindPopup(
+        popup
+      );
+
+
+      customerMarkers.push(
+        marker
+      );
+
+
+      /* GPS ACCURACY CIRCLE */
+
+      if (customer.location_accuracy) {
+
+        L.circle(
+          [
+            customer.latitude,
+            customer.longitude
+          ],
+          {
+            radius:
+              customer.location_accuracy,
+
+            color:
+              '#0f766e',
+
+            weight:
+              1,
+
+            fillOpacity:
+              0.08
+          }
+        ).addTo(map);
+
+      }
+
+    }
+  );
+
+
+  /* =========================================
+     ZOOM TO CUSTOMER
+  ========================================= */
+
+  if (customers.length === 1) {
+
+    map.setView(
+      [
+        customers[0].latitude,
+        customers[0].longitude
+      ],
+      18
+    );
+
+  }
+
+
+  else if (customers.length > 1) {
+
+    const bounds =
+      L.latLngBounds(
+
+        customers.map(
+          function(customer) {
+
+            return [
+              customer.latitude,
+              customer.longitude
+            ];
+
+          }
+        )
+
+      );
+
+
+    map.fitBounds(
+      bounds,
+      {
+        padding: [40, 40],
+        maxZoom: 17
+      }
+    );
+
+  }
+
+
+  /* =========================================
+     TECHNICIAN LOCATIONS
+  ========================================= */
+
+  let technicianMarkers = [];
+
+
+  /* =========================================
+     REFRESH LIVE LOCATION
+  ========================================= */
+
+  async function refreshLocations() {
+
+    try {
+
+
+      /* GET LOCATION DATA */
+
+      const response =
+        await fetch(
+          locationsApi
+        );
+
+
+      if (!response.ok) {
+
+        throw new Error(
+          'Unable to retrieve technician locations.'
+        );
+
+      }
+
+
+      const data =
+        await response.json();
+
+
+      /* REMOVE OLD TECHNICIAN MARKERS */
+
+      technicianMarkers.forEach(
+        function(marker) {
+
+          map.removeLayer(
+            marker
+          );
+
+        }
+      );
+
+
+      technicianMarkers = [];
+
+
+      /* ADD UPDATED TECHNICIAN MARKERS */
+
+      data.technicians.forEach(
+        function(technician) {
+
+          const marker =
+            L.circleMarker(
+              [
+                technician.latitude,
+                technician.longitude
+              ],
+              {
+                radius: 10,
+                color: '#e76f51',
+                fillColor: '#e76f51',
+                fillOpacity: 0.95,
+                weight: 3
+              }
+            )
+            .addTo(map)
+            .bindPopup(
+
+              '<b>' +
+              technician.name +
+              '</b>' +
+
+              '<br>Updated: ' +
+
+              new Date(
+                technician.recorded_at
+              ).toLocaleString()
+
+            );
+
+
+          technicianMarkers.push(
+            marker
+          );
+
+        }
+      );
+
+
+      /* =====================================
+         CUSTOMER TRACKING TECHNICIAN
+      ===================================== */
+
+      if (
+        currentRole === 'customer' &&
+        data.technicians.length > 0 &&
+        customers.length === 0
+      ) {
+
+        const technician =
+          data.technicians[0];
+
+
+        map.setView(
+          [
+            technician.latitude,
+            technician.longitude
+          ],
+          17
+        );
+
+      }
+
+
+      /* =====================================
+         SHOW CUSTOMER + TECHNICIAN TOGETHER
+      ===================================== */
+
+      if (
+        customers.length === 1 &&
+        data.technicians.length > 0
+      ) {
+
+        const points = [
+
+          [
+            customers[0].latitude,
+            customers[0].longitude
+          ],
+
+          [
+            data.technicians[0].latitude,
+            data.technicians[0].longitude
+          ]
+
+        ];
+
+
+        map.fitBounds(
+          points,
+          {
+            padding: [60, 60],
+            maxZoom: 18
+          }
+        );
+
+      }
+
+    }
+
+
+    catch (error) {
+
+      console.error(
+        'Location refresh error:',
+        error
+      );
+
+    }
+
+  }
+
+
+  /* =========================================
+     START LIVE TRACKING
+  ========================================= */
+
+  refreshLocations();
+
+
+  setInterval(
+    refreshLocations,
+    10000
+  );
+
+
+  /* =========================================
+     FIX LEAFLET MAP SIZE
+  ========================================= */
+
+  setTimeout(
+    function() {
+
+      map.invalidateSize();
+
+    },
+    200
+  );
+
+</script>
+
+{% endblock %}

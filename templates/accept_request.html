@@ -1,4 +1,73 @@
 {% extends 'base.html' %}
+
 {% block title %}Accept Request - ServiceFlow{% endblock %}
-{% block content %}<div class="page-heading"><div><p class="eyebrow">TECHNICIAN</p><h1>Accept request #{{ item.id }}</h1><p class="muted">{{ item.customer_name }} · {{ item.service_name }}</p></div></div>
-<form method="post" class="panel form-card"><div class="form-grid"><label>Start time<input name="start_time" type="datetime-local" required></label><label>End time<input name="end_time" type="datetime-local" required></label><label class="full">Notes<textarea name="notes" placeholder="Tools or preparation needed..."></textarea></label></div><div class="form-actions"><a class="button secondary" href="{{ url_for('request_detail', request_id=item.id) }}">Cancel</a><button class="button">Accept job</button></div></form>{% endblock %}
+
+{% block content %}
+
+<div class="page-heading">
+  <div>
+    <p class="eyebrow">TECHNICIAN</p>
+
+    <h1>Accept request #{{ item.id }}</h1>
+
+    <p class="muted">
+      {{ item.customer_name }} · {{ item.service_name }}
+    </p>
+  </div>
+</div>
+
+
+<form method="post" class="panel form-card">
+
+  <div class="form-grid">
+
+    <label>
+      Start time
+      <input
+        name="start_time"
+        type="datetime-local"
+        required
+      >
+    </label>
+
+    <label>
+      End time
+      <input
+        name="end_time"
+        type="datetime-local"
+        required
+      >
+    </label>
+
+    <label class="full">
+      Notes
+      <textarea
+        name="notes"
+        placeholder="Tools or preparation needed..."
+      ></textarea>
+    </label>
+
+  </div>
+
+
+  <div class="form-actions">
+
+    <a
+      class="button secondary"
+      href="{{ url_for('request_detail', request_id=item.id) }}"
+    >
+      Cancel
+    </a>
+
+    <button
+      type="submit"
+      class="button"
+    >
+      Accept Job
+    </button>
+
+  </div>
+
+</form>
+
+{% endblock %}
