@@ -1,143 +1,104 @@
 {% extends 'base.html' %}
-
 {% block title %}Create Account - ServiceFlow{% endblock %}
 
 {% block content %}
-<section class="login-card register-card">
-
-  <div class="logo-mark">SF</div>
-
-  <h1>Create your account</h1>
-  <p class="muted">Create a customer account to request and manage services.</p>
-
-  <form method="post" class="form-stack">
-
-    <!-- Automatically sets the account role as customer -->
-    <input type="hidden" name="role" value="customer">
-
-    <label>
-      Full name
-      <input
-        name="full_name"
-        autocomplete="name"
-        required
-      >
-    </label>
-
-    <label>
-      Phone number
-      <input
-        name="phone"
-        type="tel"
-        autocomplete="tel"
-        required
-      >
-    </label>
-
-    <label>
-      Username
-      <input
-        name="username"
-        autocomplete="username"
-        required
-      >
-    </label>
-
-    <label>
-      Password
-      <input
-        name="password"
-        type="password"
-        autocomplete="new-password"
-        minlength="6"
-        required
-      >
-    </label>
-
-    <label>
-      Service address
-      <textarea
-        name="address"
-        id="address"
-        placeholder="House number, street, barangay, city"
-        required
-      ></textarea>
-    </label>
-
-    <div class="form-grid">
-
-      <label>
-        Latitude
-        <input
-          name="latitude"
-          id="latitude"
-          type="number"
-          step="any"
-        >
-      </label>
-
-      <label>
-        Longitude
-        <input
-          name="longitude"
-          id="longitude"
-          type="number"
-          step="any"
-        >
-      </label>
-
-    </div>
-
-    <button
-      type="button"
-      class="button secondary"
-      onclick="getMyLocation()"
-    >
-      Use my current GPS location
-    </button>
-
-    <small id="gps-note" class="muted">
-      Coordinates help the technician find your address.
-    </small>
-
-    <button type="submit" class="button wide">
-      Create account
-    </button>
-
-    <a class="center" href="{{ url_for('login') }}">
-      Already have an account? Log in
+<section class="login-layout register-layout">
+  <div class="login-intro register-intro">
+    <a class="login-brand" href="{{ url_for('login') }}">
+      <span class="login-logo">SF</span>
+      <span>Service<strong>Flow</strong></span>
     </a>
+    <div class="intro-copy">
+      <p class="intro-label">CUSTOMER REGISTRATION</p>
+      <h1>Book trusted service without the long phone calls.</h1>
+      <p>Create your account once, send service requests anytime, and follow each appointment from scheduling to completion.</p>
+      <div class="login-features">
+        <span><i>1</i> Enter your contact and service address</span>
+        <span><i>2</i> Request the service you need</span>
+        <span><i>3</i> Get technician and status updates</span>
+      </div>
+    </div>
+    <p class="login-footnote">Dhonthedz Air Conditioning &amp; Refrigeration Service</p>
+  </div>
 
-  </form>
+  <div class="login-form-side register-form-side">
+    <div class="login-card improved-login-card register-account-card">
+      <div class="mobile-login-brand"><span class="login-logo">SF</span> Service<strong>Flow</strong></div>
+      <a class="back-to-login" href="{{ url_for('login') }}">← Back to sign in</a>
+      <p class="eyebrow">GET STARTED</p>
+      <h2>Create your account</h2>
+      <p class="muted">Fields marked with * are required.</p>
 
+      <form method="post" class="register-form">
+        <input type="hidden" name="role" value="customer">
+
+        <div class="form-grid register-grid">
+          <label for="full_name">Full name *
+            <input id="full_name" name="full_name" autocomplete="name" placeholder="Juan Dela Cruz" required>
+          </label>
+          <label for="phone">Phone number *
+            <input id="phone" name="phone" type="tel" autocomplete="tel" placeholder="09XX XXX XXXX" required>
+          </label>
+          <label for="new_username">Username *
+            <input id="new_username" name="username" autocomplete="username" placeholder="Username" required>
+          </label>
+          <label for="new_password">Password *
+            <span class="password-field">
+              <input id="new_password" name="password" type="password" autocomplete="new-password" minlength="6" placeholder="Password" required>
+              <button type="button" class="show-password" id="password-toggle" onclick="togglePassword()" aria-label="Show password">Show</button>
+            </span>
+          </label>
+          <label class="full" for="address">Service address *
+            <textarea id="address" name="address" autocomplete="street-address" placeholder="House number, street, barangay, city" required></textarea>
+          </label>
+        </div>
+
+        <section class="location-setup">
+          <div>
+            <h3>Service location</h3>
+            <p id="gps-note">Optional: add GPS coordinates to help the technician find you.</p>
+          </div>
+          <button type="button" class="button secondary small" onclick="getMyLocation()">Use current GPS</button>
+          <div class="location-coordinates">
+            <label for="latitude">Latitude<input name="latitude" id="latitude" type="number" step="any" placeholder="14.5995"></label>
+            <label for="longitude">Longitude<input name="longitude" id="longitude" type="number" step="any" placeholder="120.9842"></label>
+          </div>
+        </section>
+
+        <button type="submit" class="button wide register-submit">Create customer account</button>
+        <p class="account-login-link">Already registered? <a href="{{ url_for('login') }}">Sign in instead</a></p>
+      </form>
+    </div>
+  </div>
 </section>
 {% endblock %}
 
 {% block scripts %}
 <script>
+function togglePassword() {
+  const password = document.getElementById('new_password');
+  const toggle = document.getElementById('password-toggle');
+  const showing = password.type === 'text';
+  password.type = showing ? 'password' : 'text';
+  toggle.textContent = showing ? 'Show' : 'Hide';
+  toggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+}
+
 function getMyLocation() {
   const note = document.getElementById('gps-note');
-
   note.textContent = 'Finding your location...';
-
   if (!navigator.geolocation) {
-    note.textContent = 'GPS location is not supported by your browser.';
+    note.textContent = 'GPS is not supported by this browser.';
     return;
   }
-
   navigator.geolocation.getCurrentPosition(
-    function(position) {
-      document.getElementById('latitude').value =
-        position.coords.latitude;
-
-      document.getElementById('longitude').value =
-        position.coords.longitude;
-
-      note.textContent = 'GPS location added successfully.';
+    position => {
+      document.getElementById('latitude').value = position.coords.latitude.toFixed(7);
+      document.getElementById('longitude').value = position.coords.longitude.toFixed(7);
+      note.textContent = 'Your GPS location was added successfully.';
     },
-    function(error) {
-      note.textContent = 'Could not get location: ' + error.message;
-    }
+    error => { note.textContent = 'Could not get location: ' + error.message; },
+    { enableHighAccuracy: true, timeout: 15000 }
   );
 }
 </script>
